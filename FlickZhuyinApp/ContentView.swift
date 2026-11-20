@@ -35,23 +35,32 @@ struct ContentView: View {
                     }
                     .accessibilityLabel("Keyboard test text")
 
-                Toggle("顯示四方向符號", isOn: $showsDirectionalSymbols)
-                Text("關閉後注音與標點按鍵只顯示中央符號。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                Group {
+                    Toggle("顯示四方向符號", isOn: $showsDirectionalSymbols)
+                    Text("關閉後注音與標點按鍵只顯示中央符號。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
 
-                Toggle("選完字後自動提交", isOn: $autoCommitComposition)
-                Text("關閉後需按「確定」提交組字內容。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    Toggle("選完字後自動提交", isOn: $autoCommitComposition)
+                    Text("關閉後需按「確定」提交組字內容。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
 
-                Toggle("記憶選字", isOn: $remembersSelections)
-                Text("提交後記住新詞與選字次數。鍵盤需要開啟「允許完整取用」才能寫入；資料只保存在此裝置。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    Toggle("記憶選字", isOn: $remembersSelections)
+                    Text("提交後記住新詞與選字次數。鍵盤需要開啟「允許完整取用」才能寫入；資料只保存在此裝置。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
 
-                Button("清除學習資料", role: .destructive) {
-                    showsClearConfirmation = true
+                    Button("清除學習資料", role: .destructive) {
+                        showsClearConfirmation = true
+                    }
+                }
+                .disabled(KeyboardSettings.appGroupIdentifier == nil)
+
+                if KeyboardSettings.appGroupIdentifier == nil {
+                    Text("無法開啟鍵盤的共享設定。請確認安裝時保留鍵盤擴充功能，且主 App 與擴充功能的簽署都包含同一個 App Group。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
                 if let learningMessage {
                     Text(learningMessage)
@@ -65,6 +74,7 @@ struct ContentView: View {
             }
             .padding()
             .navigationTitle("FlickZhuyin")
+            .onAppear(perform: KeyboardSettings.logAppGroupStatus)
             .confirmationDialog("清除所有新詞與選字次數？", isPresented: $showsClearConfirmation) {
                 Button("清除學習資料", role: .destructive) {
                     Task {

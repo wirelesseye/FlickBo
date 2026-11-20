@@ -37,6 +37,7 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        KeyboardSettings.logAppGroupStatus()
         if let coordinatorHasFullAccess, coordinatorHasFullAccess != hasFullAccess {
             coordinator?.invalidate()
             coordinator = nil
