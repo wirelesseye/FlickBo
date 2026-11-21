@@ -26,6 +26,11 @@ final class KeyboardViewController: UIInputViewController {
     private var coordinator: ChineseInputCoordinator?
     private var coordinatorHasFullAccess: Bool?
     private var coordinatorCharacterVariant: CharacterVariant?
+    /// The variant in use. Kept here so the toolbar menu still works when the
+    /// App Group cannot be written; `settingsCharacterVariant` notices changes
+    /// made in the app.
+    private var characterVariant = KeyboardSettings.characterVariant
+    private var settingsCharacterVariant = KeyboardSettings.characterVariant
 
     private lazy var effectApplier = DocumentEffectApplier(
         client: TextDocumentProxyClient(proxy: textDocumentProxy)
@@ -44,12 +49,15 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillAppear(animated)
         KeyboardSettings.logAppGroupStatus()
         let accessChanged = coordinatorHasFullAccess.map { $0 != hasFullAccess } ?? false
-        let variantChanged = coordinatorCharacterVariant.map { $0 != KeyboardSettings.characterVariant } ?? false
+        let settingsVariant = KeyboardSettings.characterVariant
+        if settingsVariant != settingsCharacterVariant {
+            settingsCharacterVariant = settingsVariant
+            characterVariant = settingsVariant
+            candidateBar?.characterVariant = settingsVariant
+        }
+        let variantChanged = coordinatorCharacterVariant.map { $0 != characterVariant } ?? false
         if accessChanged || variantChanged {
-            coordinator?.invalidate()
-            coordinator = nil
-            coordinatorHasFullAccess = nil
-            coordinatorCharacterVariant = nil
+            resetCoordinator()
         }
         let shows = KeyboardSettings.showsDirectionalSymbols
         let usesFlick = KeyboardSettings.abcUsesFlickLayout
@@ -156,6 +164,8 @@ final class KeyboardViewController: UIInputViewController {
         candidateBar.onDismissKeyboard = { [weak self] in self?.dismissKeyboard() }
         candidateBar.characterWidth = characterWidth(for: engine.mode)
         candidateBar.onToggleCharacterWidth = { [weak self] in self?.toggleCharacterWidth() }
+        candidateBar.characterVariant = characterVariant
+        candidateBar.onSelectCharacterVariant = { [weak self] variant in self?.selectCharacterVariant(variant) }
         candidateBar.heightAnchor.constraint(equalToConstant: 40).isActive = true
         self.candidateBar = candidateBar
         return candidateBar
@@ -419,6 +429,24 @@ final class KeyboardViewController: UIInputViewController {
         case .number: "number"
         case .abc: "abc"
         }
+    }
+
+    /// The toolbar only shows without input, so nothing is being composed.
+    private func selectCharacterVariant(_ variant: CharacterVariant) {
+        guard variant != characterVariant else { return }
+        characterVariant = variant
+        KeyboardSettings.characterVariant = variant
+        settingsCharacterVariant = KeyboardSettings.characterVariant
+        candidateBar?.characterVariant = variant
+        resetCoordinator()
+        refreshCandidates()
+    }
+
+    private func resetCoordinator() {
+        coordinator?.invalidate()
+        coordinator = nil
+        coordinatorHasFullAccess = nil
+        coordinatorCharacterVariant = nil
     }
 
     private func toggleCharacterWidth() {
@@ -732,7 +760,7 @@ final class KeyboardViewController: UIInputViewController {
             return coordinator
         }
         let fullAccess = hasFullAccess
-        let characterVariant = KeyboardSettings.characterVariant
+        let characterVariant = self.characterVariant
         let coordinator = ChineseInputCoordinator { [bundle = Bundle.main] in
             let userStore = KeyboardSettings.userLearningURL.flatMap {
                 try? UserLearningStore(url: $0, writable: fullAccess)

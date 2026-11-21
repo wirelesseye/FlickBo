@@ -46,15 +46,15 @@ struct ContentView: View {
                         .accessibilityLabel("鍵盤測試文字")
 
                     Group {
-                        LabeledContent("字形") {
-                            Picker("字形", selection: $characterVariant) {
+                        LabeledContent("字形轉換") {
+                            Picker("字形轉換", selection: $characterVariant) {
                                 ForEach(CharacterVariant.allCases, id: \.self) { variant in
                                     Text(variant.title).tag(variant)
                                 }
                             }
                             .labelsHidden()
                         }
-                        Text(characterVariant.settingsDescription)
+                        Text("候選與建議字詞使用的字形。")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
 
@@ -126,24 +126,4 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-}
-
-private extension CharacterVariant {
-    var title: String {
-        switch self {
-        case .taiwan: "臺灣"
-        case .hongKong: "香港"
-        case .mainland: "大陸（簡體）"
-        case .traditional: "傳承字形"
-        }
-    }
-
-    var settingsDescription: String {
-        switch self {
-        case .taiwan: "例如「為什麼」「裡面」；臺灣用詞（例如「軟體」「程式碼」）排序較前。"
-        case .hongKong: "例如「為什麼」「裏面」，採用香港常用字形。"
-        case .mainland: "例如「为什么」「里面」，候選轉為簡體字。"
-        case .traditional: "例如「爲什麼」「裏面」，即 OpenCC 標準繁體，與內建詞庫相同。"
-        }
-    }
 }

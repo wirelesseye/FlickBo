@@ -73,6 +73,8 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
     var onOpenSettings: (() -> Void)?
     var onDismissKeyboard: (() -> Void)?
     var onToggleCharacterWidth: (() -> Void)?
+    var onSelectCharacterVariant: ((CharacterVariant) -> Void)?
+    var characterVariant: CharacterVariant = .taiwan
     var characterWidth: CharacterWidth = .half {
         didSet { updateWidthButton() }
     }
@@ -103,6 +105,7 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
     private let settingsButton = ToolbarButton()
     private let dismissButton = ToolbarButton()
     private let widthButton = ToolbarButton()
+    private let variantButton = ToolbarButton()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -213,6 +216,16 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
         widthButton.widthAnchor.constraint(equalToConstant: 44).isActive = true
         updateWidthButton()
 
+        variantButton.image = UIImage(
+            systemName: "bubble.and.pencil",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .regular)
+        )
+        variantButton.accessibilityIdentifier = "toolbar-character-variant"
+        variantButton.accessibilityLabel = "字形"
+        // Built on each tap so the checkmark follows the current variant.
+        variantButton.menuProvider = { [weak self] in self?.characterVariantMenu() }
+        variantButton.widthAnchor.constraint(equalToConstant: 44).isActive = true
+
         let toolbarSpacer = UIView()
         toolbarSpacer.setContentHuggingPriority(.defaultLow - 1, for: .horizontal)
 
@@ -221,6 +234,7 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
         toolbarView.spacing = 4
         toolbarView.addArrangedSubview(settingsButton)
         toolbarView.addArrangedSubview(widthButton)
+        toolbarView.addArrangedSubview(variantButton)
         toolbarView.addArrangedSubview(toolbarSpacer)
         toolbarView.addArrangedSubview(dismissButton)
         toolbarView.translatesAutoresizingMaskIntoConstraints = false
@@ -403,10 +417,24 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
         )
     }
 
+    private func characterVariantMenu() -> UIMenu {
+        UIMenu(
+            options: .singleSelection,
+            children: CharacterVariant.allCases.map { variant in
+                UIAction(
+                    title: variant.title,
+                    state: variant == characterVariant ? .on : .off
+                ) { [weak self] _ in
+                    self?.onSelectCharacterVariant?(variant)
+                }
+            }
+        )
+    }
+
     private func updateWidthButton() {
         let isFull = characterWidth == .full
         widthButton.image = UIImage(
-            systemName: isFull ? "circle" : "moon",
+            systemName: isFull ? "inset.filled.circle.dashed" : "circle.lefthalf.filled",
             withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
         )
         widthButton.accessibilityLabel = isFull ? "全形，點按切換為半形" : "半形，點按切換為全形"
@@ -582,6 +610,22 @@ final class ToolbarButton: CandidateHighlightControl {
     var image: UIImage? {
         get { imageView.image }
         set { imageView.image = newValue }
+    }
+
+    /// When set, a tap shows this menu instead of sending `.touchUpInside`.
+    var menuProvider: (() -> UIMenu?)? {
+        didSet {
+            isContextMenuInteractionEnabled = menuProvider != nil
+            showsMenuAsPrimaryAction = menuProvider != nil
+        }
+    }
+
+    override func contextMenuInteraction(
+        _ interaction: UIContextMenuInteraction,
+        configurationForMenuAtLocation location: CGPoint
+    ) -> UIContextMenuConfiguration? {
+        guard let menuProvider else { return nil }
+        return UIContextMenuConfiguration(actionProvider: { _ in menuProvider() })
     }
 
     override init(frame: CGRect) {

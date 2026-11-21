@@ -9,6 +9,16 @@ enum CharacterVariant: String, CaseIterable, Sendable {
     /// OpenCC Standard Traditional, the form the bundled lexicon uses.
     case traditional
 
+    /// Name shown in the app's settings and the keyboard's character-variant menu.
+    var title: String {
+        switch self {
+        case .taiwan: "臺灣"
+        case .hongKong: "香港"
+        case .mainland: "中國大陸（簡體）"
+        case .traditional: "傳承字形"
+        }
+    }
+
     /// Canonical (OpenCC Standard) -> this region.
     var outputConversion: String? {
         switch self {
