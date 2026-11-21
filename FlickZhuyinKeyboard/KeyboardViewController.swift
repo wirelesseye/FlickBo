@@ -138,6 +138,7 @@ final class KeyboardViewController: UIInputViewController {
         candidateBar.onVisibleCandidatesChanged = { [weak self] _ in
             self?.refreshExpandedCandidates()
         }
+        candidateBar.onOpenSettings = { [weak self] in self?.openContainingApp() }
         candidateBar.heightAnchor.constraint(equalToConstant: 40).isActive = true
         mainStack.addArrangedSubview(candidateBar)
         self.candidateBar = candidateBar
@@ -402,6 +403,26 @@ final class KeyboardViewController: UIInputViewController {
             guard !didRepeat else { return }
             self?.handle(key)
         }, for: .touchUpInside)
+    }
+
+    /// Keyboard extensions can't call `UIApplication.shared`, so walk the responder chain to the
+    /// host application and invoke `openURL:options:completionHandler:` dynamically.
+    private func openContainingApp() {
+        guard let url = URL(string: "flickzhuyin://settings") else { return }
+        let selector = NSSelectorFromString("openURL:options:completionHandler:")
+        var responder: UIResponder? = self
+        while let current = responder {
+            if current.isKind(of: NSClassFromString("UIApplication") ?? NSNull.self),
+               current.responds(to: selector),
+               let method = current.method(for: selector) {
+                typealias OpenURL = @convention(c) (
+                    AnyObject, Selector, NSURL, NSDictionary, (@convention(block) (Bool) -> Void)?
+                ) -> Void
+                unsafeBitCast(method, to: OpenURL.self)(current, selector, url as NSURL, NSDictionary(), nil)
+                return
+            }
+            responder = current.next
+        }
     }
 
     private func prepareForInputModeSwitch() {

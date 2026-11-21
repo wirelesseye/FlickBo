@@ -57,6 +57,7 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
     var onSelect: ((CandidateItem) -> Void)?
     var onToggleExpansion: (() -> Void)?
     var onVisibleCandidatesChanged: ((Int) -> Void)?
+    var onOpenSettings: (() -> Void)?
 
     private(set) var isExpanded = false
     private(set) var visibleCandidateCount = 0
@@ -80,6 +81,8 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
     private let expandButton = UIButton(type: .system)
     private let dividerView = UIView()
     private let hitSurfaceView = UIView()
+    private let toolbarView = UIStackView()
+    private let settingsButton = ToolbarButton(type: .custom)
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -155,7 +158,33 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
         hitSurfaceView.isUserInteractionEnabled = false
         insertSubview(hitSurfaceView, belowSubview: expandButton)
 
+        // Toolbar shown in place of candidates while there is no input.
+        settingsButton.setImage(
+            UIImage(
+                systemName: "gearshape",
+                withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+            ),
+            for: .normal
+        )
+        settingsButton.accessibilityIdentifier = "toolbar-settings"
+        settingsButton.accessibilityLabel = "設定"
+        settingsButton.addAction(
+            UIAction { [weak self] _ in self?.onOpenSettings?() },
+            for: .touchUpInside
+        )
+        settingsButton.widthAnchor.constraint(equalToConstant: 44).isActive = true
+
+        toolbarView.axis = .horizontal
+        toolbarView.alignment = .fill
+        toolbarView.spacing = 4
+        toolbarView.addArrangedSubview(settingsButton)
+        toolbarView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(toolbarView)
+
         NSLayoutConstraint.activate([
+            toolbarView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.contentInset),
+            toolbarView.topAnchor.constraint(equalTo: topAnchor),
+            toolbarView.bottomAnchor.constraint(equalTo: bottomAnchor),
             collectionView.leadingAnchor.constraint(equalTo: leadingAnchor),
             collectionView.trailingAnchor.constraint(equalTo: dividerView.leadingAnchor, constant: -8),
             collectionView.topAnchor.constraint(equalTo: topAnchor),
@@ -203,6 +232,7 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
         dividerView.isHidden = !hasCandidates || isExpanded
         expandButton.isEnabled = hasCandidates
         expandButton.alpha = hasCandidates ? 1 : 0.4
+        toolbarView.isHidden = hasCandidates
     }
 
     func setExpanded(_ expanded: Bool, completion: (() -> Void)? = nil) {
@@ -434,6 +464,31 @@ final class CandidateButton: UIButton {
     private func updateAppearance() {
         alpha = 1
         titleLabel?.alpha = 1
+        backgroundColor = isHighlighted ? KeyboardButton.standardKeyColor : .clear
+    }
+}
+
+/// Toolbar icon button that highlights with a key-colored background, matching candidates.
+final class ToolbarButton: UIButton {
+    override var isHighlighted: Bool {
+        didSet { updateAppearance() }
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        tintColor = .label
+        adjustsImageWhenHighlighted = false
+        layer.cornerRadius = 10
+        layer.cornerCurve = .continuous
+        clipsToBounds = true
+        updateAppearance()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func updateAppearance() {
         backgroundColor = isHighlighted ? KeyboardButton.standardKeyColor : .clear
     }
 }

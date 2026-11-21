@@ -625,6 +625,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 794A5QCL7Y;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FlickZhuyinApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = FlickZhuyin;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -647,6 +648,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 794A5QCL7Y;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FlickZhuyinApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = FlickZhuyin;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
