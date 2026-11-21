@@ -83,8 +83,8 @@ final class KeyRepeater {
 class KeyboardButton: UIButton {
     static let standardKeyColor = UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(white: 0.28, alpha: 0.85)
-            : UIColor(white: 1, alpha: 0.85)
+            ? UIColor(white: 0.35, alpha: 0.7)
+            : UIColor(white: 1, alpha: 0.7)
     }
 
     var normalColor: UIColor = KeyboardButton.standardKeyColor {
