@@ -14,6 +14,10 @@ struct ContentView: View {
         KeyboardSettings.remembersSelectionsKey,
         store: KeyboardSettings.sharedDefaults
     ) private var remembersSelections = KeyboardSettings.remembersSelections
+    @AppStorage(
+        KeyboardSettings.abcUsesFlickLayoutKey,
+        store: KeyboardSettings.sharedDefaults
+    ) private var abcUsesFlickLayout = KeyboardSettings.abcUsesFlickLayout
     @State private var showsClearConfirmation = false
     @State private var learningMessage: String?
 
@@ -40,6 +44,11 @@ struct ContentView: View {
                     Group {
                         Toggle("顯示四方向符號", isOn: $showsDirectionalSymbols)
                         Text("關閉後注音與標點按鍵只顯示中央符號。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+
+                        Toggle("ABC 模式使用九宮格", isOn: $abcUsesFlickLayout)
+                        Text("開啟時以滑動選擇字母；關閉後改用 QWERTY 全鍵盤。")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
 

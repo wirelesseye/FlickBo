@@ -98,12 +98,32 @@ enum NumberLayout {
 
     static func mapping(for digit: Character, width: CharacterWidth) -> FlickKeyMapping {
         let base = halfWidthMappings[digit] ?? FlickKeyMapping([String(digit)])
-        guard width == .full else { return base }
-        return FlickKeyMapping(
-            FlickDirection.allCases.prefix { base[$0] != nil }.compactMap { direction in
-                base[direction].map(width.apply(to:))
-            }
-        )
+        return base.map(width.apply(to:))
+    }
+}
+
+/// Nine-key ABC layout: letters follow the phone keypad groups, and the top-left key
+/// holds symbols common in English text, email addresses and URLs.
+enum ABCFlickLayout {
+    static let symbols = FlickKeyMapping(["'", "@", "#", "/", "-"])
+
+    /// Letter keys in reading order; the first row starts after the symbol key.
+    static let letterRows: [[FlickKeyMapping]] = [
+        [FlickKeyMapping(["a", "b", "c"]), FlickKeyMapping(["d", "e", "f"])],
+        [FlickKeyMapping(["g", "h", "i"]), FlickKeyMapping(["j", "k", "l"]), FlickKeyMapping(["m", "n", "o"])],
+        [
+            FlickKeyMapping(["p", "q", "r", "s"]),
+            FlickKeyMapping(["t", "u", "v"]),
+            FlickKeyMapping(["w", "x", "y", "z"])
+        ]
+    ]
+
+    static func letters(
+        _ mapping: FlickKeyMapping,
+        letterCase: LetterCaseState,
+        width: CharacterWidth
+    ) -> FlickKeyMapping {
+        mapping.map { width.apply(to: letterCase == .lowercase ? $0.lowercased() : $0.uppercased()) }
     }
 }
 

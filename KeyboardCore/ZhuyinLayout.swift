@@ -24,6 +24,13 @@ struct FlickKeyMapping: Equatable, Sendable {
         down = symbols[safe: 4]
     }
 
+    /// Applies `transform` to every symbol, keeping the same directions.
+    func map(_ transform: (String) -> String) -> FlickKeyMapping {
+        FlickKeyMapping(
+            FlickDirection.allCases.prefix { self[$0] != nil }.compactMap { self[$0].map(transform) }
+        )
+    }
+
     subscript(direction: FlickDirection) -> String? {
         switch direction {
         case .center: center

@@ -18,6 +18,8 @@ final class KeyboardViewController: UIInputViewController {
     private var documentContextBeforeComposition = ""
     private var expectedSuggestionContext: String?
     private var showsDirectionalSymbols = KeyboardSettings.showsDirectionalSymbols
+    private var abcUsesFlickLayout = KeyboardSettings.abcUsesFlickLayout
+    private var letterKeys: [(base: FlickKeyMapping, button: FlickKeyButton)] = []
     /// Cached per-mode width so the toggle still works without App Group access.
     private var characterWidths: [KeyboardMode: CharacterWidth] = [:]
 
@@ -46,8 +48,10 @@ final class KeyboardViewController: UIInputViewController {
             self.coordinatorHasFullAccess = nil
         }
         let shows = KeyboardSettings.showsDirectionalSymbols
-        guard shows != showsDirectionalSymbols else { return }
+        let usesFlick = KeyboardSettings.abcUsesFlickLayout
+        guard shows != showsDirectionalSymbols || usesFlick != abcUsesFlickLayout else { return }
         showsDirectionalSymbols = shows
+        abcUsesFlickLayout = usesFlick
         rebuildKeyboard()
     }
 
@@ -76,6 +80,7 @@ final class KeyboardViewController: UIInputViewController {
     private func rebuildKeyboard() {
         view.subviews.forEach { $0.removeFromSuperview() }
         keyButtons.removeAll(keepingCapacity: true)
+        letterKeys.removeAll(keepingCapacity: true)
         nextKeyboardButton = nil
         candidateBar = nil
         expandedCandidatesView = nil
@@ -88,7 +93,12 @@ final class KeyboardViewController: UIInputViewController {
         switch engine.mode {
         case .zhuyin: buildZhuyinKeyboard()
         case .number: buildNumberKeyboard()
-        case .abc: buildABCKeyboard()
+        case .abc:
+            if abcUsesFlickLayout {
+                buildGridKeyboard(mode: .abc)
+            } else {
+                buildABCKeyboard()
+            }
         }
         refreshUI()
         view.setNeedsLayout()
@@ -182,12 +192,21 @@ final class KeyboardViewController: UIInputViewController {
                 inputKeys.addArrangedSubview(rowStack)
             }
         case .abc:
-            break
+            for (rowIndex, mappings) in ABCFlickLayout.letterRows.enumerated() {
+                let row = makeRow()
+                if rowIndex == 0 {
+                    row.addArrangedSubview(makeSymbolControl(ABCFlickLayout.symbols))
+                }
+                mappings.forEach { row.addArrangedSubview(makeLetterControl($0)) }
+                inputKeys.addArrangedSubview(row)
+            }
         }
         let toneRow = makeRow()
         toneRow.addArrangedSubview(makeToneControl())
         if mode == .number {
             toneRow.addArrangedSubview(makeDigitControl(NumberLayout.zero))
+        } else if mode == .abc {
+            toneRow.addArrangedSubview(makeButton(for: .shift))
         } else {
             toneRow.addArrangedSubview(makeZhuyinControl(ZhuyinLayout.nasalFinals))
         }
@@ -295,6 +314,45 @@ final class KeyboardViewController: UIInputViewController {
         }
         button.accessibilityLabel = mappingSymbols(mapping)
         return button
+    }
+
+    private func makeLetterControl(_ base: FlickKeyMapping) -> FlickKeyButton {
+        let button = makeFlickButton(mapping: base) { [weak self] direction in
+            guard let symbol = base[direction], let character = symbol.first else { return }
+            self?.handle(.letter(character))
+        }
+        button.directionalFaceStyle = .zhuyin
+        button.accessibilityLabel = mappingSymbols(base)
+        letterKeys.append((base, button))
+        return button
+    }
+
+    private func makeSymbolControl(_ base: FlickKeyMapping) -> FlickKeyButton {
+        let mapping = base.map(engine.characterWidth.apply(to:))
+        let button = makeFlickButton(mapping: mapping) { [weak self] direction in
+            guard let symbol = mapping[direction] else { return }
+            self?.handle(.symbol(symbol))
+        }
+        if showsDirectionalSymbols {
+            button.directionalFaceStyle = .punctuation
+            button.directionalFace = mapping
+        }
+        button.accessibilityLabel = mappingSymbols(mapping)
+        return button
+    }
+
+    private func refreshLetterKeys() {
+        for (base, button) in letterKeys {
+            let mapping = ABCFlickLayout.letters(
+                base,
+                letterCase: engine.letterCase,
+                width: engine.characterWidth
+            )
+            guard button.mapping != mapping || (button.directionalFace != nil) != showsDirectionalSymbols
+            else { continue }
+            button.mapping = mapping
+            button.directionalFace = showsDirectionalSymbols ? mapping : nil
+        }
     }
 
     private var currentPunctuation: FlickKeyMapping {
@@ -691,56 +749,55 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func refreshUI() {
-        if engine.mode != .abc {
-            refreshCandidates()
-            let hasPending = engine.hasActiveTokens
-            if hasPending {
-                punctuationButton?.mapping = FlickKeyMapping([MandarinTone.neutral.symbol])
-                punctuationButton?.directionalFace = nil
-                punctuationButton?.showsPreview = false
-                punctuationButton?.setAttributedTitle(
+        refreshLetterKeys()
+        refreshCandidates()
+        let hasPending = engine.hasActiveTokens
+        if hasPending {
+            punctuationButton?.mapping = FlickKeyMapping([MandarinTone.neutral.symbol])
+            punctuationButton?.directionalFace = nil
+            punctuationButton?.showsPreview = false
+            punctuationButton?.setAttributedTitle(
+                ToneSymbolStyle.attributedText(
+                    for: MandarinTone.neutral.symbol,
+                    fontSize: ToneSymbolStyle.keyFontSize
+                ),
+                for: .normal
+            )
+            punctuationButton?.accessibilityLabel = "輕聲"
+        } else {
+            let punctuation = currentPunctuation
+            punctuationButton?.mapping = punctuation
+            if let punctuationButton {
+                applyPunctuationFace(punctuationButton, mapping: punctuation)
+            }
+            punctuationButton?.showsPreview = true
+            punctuationButton?.accessibilityLabel = mappingSymbols(punctuation)
+        }
+        toneButton?.mapping = hasPending
+            ? ZhuyinLayout.tones
+            : FlickKeyMapping(["space"])
+        toneButton?.showsPreview = hasPending
+        if hasPending {
+            toneButton?.setImage(nil, for: .normal)
+            if showsDirectionalSymbols {
+                toneButton?.directionalFaceStyle = .tone
+                toneButton?.directionalFace = ZhuyinLayout.tones
+            } else {
+                toneButton?.directionalFace = nil
+                toneButton?.setAttributedTitle(
                     ToneSymbolStyle.attributedText(
-                        for: MandarinTone.neutral.symbol,
+                        for: MandarinTone.first.symbol,
                         fontSize: ToneSymbolStyle.keyFontSize
                     ),
                     for: .normal
                 )
-                punctuationButton?.accessibilityLabel = "輕聲"
-            } else {
-                let punctuation = currentPunctuation
-                punctuationButton?.mapping = punctuation
-                if let punctuationButton {
-                    applyPunctuationFace(punctuationButton, mapping: punctuation)
-                }
-                punctuationButton?.showsPreview = true
-                punctuationButton?.accessibilityLabel = mappingSymbols(punctuation)
             }
-            toneButton?.mapping = hasPending
-                ? ZhuyinLayout.tones
-                : FlickKeyMapping(["space"])
-            toneButton?.showsPreview = hasPending
-            if hasPending {
-                toneButton?.setImage(nil, for: .normal)
-                if showsDirectionalSymbols {
-                    toneButton?.directionalFaceStyle = .tone
-                    toneButton?.directionalFace = ZhuyinLayout.tones
-                } else {
-                    toneButton?.directionalFace = nil
-                    toneButton?.setAttributedTitle(
-                        ToneSymbolStyle.attributedText(
-                            for: MandarinTone.first.symbol,
-                            fontSize: ToneSymbolStyle.keyFontSize
-                        ),
-                        for: .normal
-                    )
-                }
-            } else {
-                toneButton?.directionalFace = nil
-                toneButton?.setAttributedTitle(nil, for: .normal)
-                toneButton?.setTitle(nil, for: .normal)
-                toneButton?.setImage(keyIcon(named: "space"), for: .normal)
-                toneButton?.tintColor = .label
-            }
+        } else {
+            toneButton?.directionalFace = nil
+            toneButton?.setAttributedTitle(nil, for: .normal)
+            toneButton?.setTitle(nil, for: .normal)
+            toneButton?.setImage(keyIcon(named: "space"), for: .normal)
+            toneButton?.tintColor = .label
         }
 
         UIView.performWithoutAnimation {
@@ -781,7 +838,7 @@ final class KeyboardViewController: UIInputViewController {
                     button.setTitle(engine.mode == .abc ? "中" : "ABC", for: .normal)
                     button.titleLabel?.font = .systemFont(ofSize: 15, weight: .medium)
                 case .numberSwitch:
-                    button.setTitle(engine.mode == .zhuyin ? "123" : "中", for: .normal)
+                    button.setTitle(engine.mode == .number ? "中" : "123", for: .normal)
                     button.titleLabel?.font = .systemFont(ofSize: 15, weight: .medium)
                 case let .tone(tone):
                     button.setAttributedTitle(
@@ -897,7 +954,7 @@ final class KeyboardViewController: UIInputViewController {
         case .return: "Return"
         case .nextKeyboard: "Next keyboard"
         case .modeSwitch: engine.mode == .abc ? "切換中文" : "切換 ABC"
-        case .numberSwitch: engine.mode == .zhuyin ? "切換數字模式" : "切換中文"
+        case .numberSwitch: engine.mode == .number ? "切換中文" : "切換數字模式"
         }
     }
 }

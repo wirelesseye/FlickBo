@@ -314,9 +314,31 @@ final class KeyboardEngineTests: XCTestCase {
         XCTAssertEqual(engine.update(for: .space), .none)
     }
 
-    func testSymbolIsIgnoredInABCMode() {
+    func testABCModeInsertsSymbolsWithVariants() {
         var engine = KeyboardEngine(mode: .abc)
-        XCTAssertEqual(engine.update(for: .symbol("(")), .none)
+        XCTAssertEqual(engine.update(for: .symbol("'")).documentEffects, [.insertText("'")])
+        XCTAssertEqual(engine.symbolCandidates, ["'", "＇", "‘", "’"])
+    }
+
+    func testABCFlickLayoutCoversAlphabetOnce() {
+        let letters = ABCFlickLayout.letterRows.flatMap { $0 }.flatMap { mapping in
+            FlickDirection.allCases.compactMap { mapping[$0] }
+        }
+        XCTAssertEqual(letters.joined(), "abcdefghijklmnopqrstuvwxyz")
+        XCTAssertEqual(ABCFlickLayout.letterRows.map(\.count), [2, 3, 3])
+        XCTAssertEqual(ABCFlickLayout.symbols, FlickKeyMapping(["'", "@", "#", "/", "-"]))
+    }
+
+    func testABCFlickLettersFollowCaseAndWidth() {
+        let pqrs = ABCFlickLayout.letterRows[2][0]
+        XCTAssertEqual(
+            ABCFlickLayout.letters(pqrs, letterCase: .shifted, width: .half),
+            FlickKeyMapping(["P", "Q", "R", "S"])
+        )
+        XCTAssertEqual(
+            ABCFlickLayout.letters(pqrs, letterCase: .lowercase, width: .full),
+            FlickKeyMapping(["ｐ", "ｑ", "ｒ", "ｓ"])
+        )
     }
 
     func testNumberFlickLayout() {
@@ -375,10 +397,10 @@ final class KeyboardEngineTests: XCTestCase {
         XCTAssertEqual(engine.mode, .zhuyin)
     }
 
-    func testNumberSwitchFromABCProducesNoEffects() {
+    func testNumberSwitchFromABCGoesToNumberMode() {
         var engine = KeyboardEngine(mode: .abc)
         XCTAssertEqual(engine.update(for: .numberSwitch), .none)
-        XCTAssertEqual(engine.mode, .abc)
+        XCTAssertEqual(engine.mode, .number)
     }
 
     func testModeSwitchFromNumberGoesToABC() {

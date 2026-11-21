@@ -8,6 +8,7 @@ enum KeyboardSettings {
     static let showsDirectionalSymbolsKey = "showsDirectionalSymbols"
     static let autoCommitCompositionKey = "autoCommitComposition"
     static let remembersSelectionsKey = "remembersSelections"
+    static let abcUsesFlickLayoutKey = "abcUsesFlickLayout"
 
     private static let appGroupCandidates: [String] = {
         guard let bundleID = Bundle.main.bundleIdentifier,
@@ -79,6 +80,11 @@ enum KeyboardSettings {
 
     private static func fullWidthKey(_ mode: String) -> String {
         "usesFullWidth." + mode
+    }
+
+    static var abcUsesFlickLayout: Bool {
+        get { boolValue(for: abcUsesFlickLayoutKey) }
+        set { sharedDefaults?.set(newValue, forKey: abcUsesFlickLayoutKey) }
     }
 
     static var userLearningURL: URL? {

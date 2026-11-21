@@ -63,7 +63,7 @@ struct KeyboardEngine: Sendable {
             guard mode == .number else { return .none }
             return insertSymbol(characterWidth.apply(to: String(character)))
         case let .symbol(text):
-            guard mode != .abc, !text.isEmpty else { return .none }
+            guard !text.isEmpty else { return .none }
             return insertSymbol(text)
         case let .tone(tone):
             guard mode == .zhuyin, composition.applyTone(tone) else { return .none }
@@ -147,6 +147,7 @@ struct KeyboardEngine: Sendable {
                 mode = .zhuyin
                 return .none
             case .abc:
+                mode = .number
                 return .none
             }
         }
