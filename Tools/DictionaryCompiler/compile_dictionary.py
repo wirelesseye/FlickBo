@@ -13,6 +13,15 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
+from opencc_data import (
+    CONVERSIONS as OPENCC_CONVERSIONS,
+    SOURCE_DICTIONARIES as OPENCC_SOURCE_DICTIONARIES,
+    OpenCCFormatError,
+    format_golden as format_opencc_golden,
+    golden_rows as opencc_golden_rows,
+    load_dictionaries as load_opencc_dictionaries,
+    write_fzopencc,
+)
 from octagram import FZGRAM_DEFAULT_BLOCK_SIZE, FZGram, GramFormatError, read_gram, write_fzgram
 from pinyin_to_zhuyin import PinyinError, convert_syllable, strip_tone
 
@@ -28,6 +37,12 @@ OCTAGRAM_RAW_BASE_URL = "https://raw.githubusercontent.com/lotem/rime-octagram-d
 OCTAGRAM_GRAM_PATH = "zh-hant-t-essay-bgw.gram"
 OCTAGRAM_FORMAT_VERSION = 1
 GRAMMAR_COMPILER_VERSION = 1
+OPENCC_REPOSITORY = "https://github.com/BYVoid/OpenCC"
+OPENCC_RAW_BASE_URL = "https://raw.githubusercontent.com/BYVoid/OpenCC"
+OPENCC_DICTIONARY_DIRECTORY = "data/dictionary"
+OPENCC_TESTCASES_PATH = "test/testcases/testcases.json"
+OPENCC_COMPILER_VERSION = 1
+MAXIMUM_OPENCC_BYTES = 8 * 1024 * 1024
 MAXIMUM_GRAMMAR_BYTES = 64 * 1024 * 1024
 MAXIMUM_GRAMMAR_KEY_CHARACTERS = 8
 SENTENCE_BOUNDARY = "$"
@@ -1411,6 +1426,95 @@ def command_build_grammar(args: argparse.Namespace) -> int:
     return 0
 
 
+def opencc_source_files() -> dict[str, str]:
+    """Local file name -> path inside the OpenCC repository."""
+    files = {
+        f"{name}.txt": f"{OPENCC_DICTIONARY_DIRECTORY}/{name}.txt" for name in OPENCC_SOURCE_DICTIONARIES
+    }
+    # Renamed so it does not collide with other LICENSE files in the app bundle.
+    files["OpenCC-LICENSE.txt"] = "LICENSE"
+    files["testcases.json"] = OPENCC_TESTCASES_PATH
+    return files
+
+
+def command_fetch_opencc(args: argparse.Namespace) -> int:
+    if not validate_commit(args.commit):
+        print("fetch-opencc: --commit must be a full 40-character lowercase hex commit", file=sys.stderr)
+        return 2
+    destination = Path(args.dest)
+    files = {
+        name: download(f"{OPENCC_RAW_BASE_URL}/{args.commit}/{path}")
+        for name, path in opencc_source_files().items()
+    }
+    manifest = {
+        "repository": OPENCC_REPOSITORY,
+        "commit": args.commit,
+        "tag": args.tag or "",
+        "files": {
+            name: {"path": path, "sha256": sha256_bytes(files[name])}
+            for name, path in opencc_source_files().items()
+        },
+        "retrievedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    destination.mkdir(parents=True, exist_ok=True)
+    for name, data in files.items():
+        (destination / name).write_bytes(data)
+    (destination / "SOURCE.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"fetch-opencc: wrote {len(files)} files to {destination}")
+    return 0
+
+
+def build_opencc(
+    source_directory: Path, manifest_path: Path, output_path: Path, golden_path: Path | None = None
+) -> int:
+    manifest = load_manifest(manifest_path)
+    expected = manifest.get("files")
+    if not isinstance(expected, dict) or not validate_commit(str(manifest.get("commit", ""))):
+        raise CompileFailure(f"{manifest_path}: missing commit or files")
+    for name in opencc_source_files():
+        record = expected.get(name)
+        if not isinstance(record, dict) or not SHA256_PATTERN.fullmatch(str(record.get("sha256", ""))):
+            raise CompileFailure(f"{manifest_path}: missing sha256 for {name}")
+        actual = sha256_bytes((source_directory / name).read_bytes())
+        if actual != record["sha256"]:
+            raise CompileFailure(f"{name}: sha256 {actual} does not match manifest {record['sha256']}")
+    try:
+        dictionaries = load_opencc_dictionaries(source_directory)
+        data = write_fzopencc(dictionaries)
+        golden = (
+            format_opencc_golden(opencc_golden_rows(dictionaries, source_directory / "testcases.json"))
+            if golden_path is not None
+            else None
+        )
+    except OpenCCFormatError as error:
+        raise CompileFailure(str(error)) from error
+    if len(data) > MAXIMUM_OPENCC_BYTES:
+        raise CompileFailure(f"FZOpenCC output is {len(data)} bytes, above {MAXIMUM_OPENCC_BYTES}")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(data)
+    if golden_path is not None and golden is not None:
+        golden_path.parent.mkdir(parents=True, exist_ok=True)
+        golden_path.write_text(golden, encoding="utf-8")
+    return len(data)
+
+
+def command_build_opencc(args: argparse.Namespace) -> int:
+    try:
+        size = build_opencc(
+            Path(args.source_dir),
+            Path(args.manifest),
+            Path(args.output),
+            Path(args.golden) if args.golden else None,
+        )
+    except (CompileFailure, OSError) as failure:
+        print(f"build-opencc: failed: {failure}", file=sys.stderr)
+        return 1
+    print(f"build-opencc: {len(OPENCC_CONVERSIONS)} conversions, {size} bytes")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Compile the pinned Rime sources into the SQLite dictionary and FZGram grammar"
@@ -1459,6 +1563,25 @@ def main(argv: list[str] | None = None) -> int:
     build_grammar_parser.add_argument("--output", required=True)
     build_grammar_parser.add_argument("--report", required=True)
     build_grammar_parser.set_defaults(func=command_build_grammar)
+
+    fetch_opencc = subparsers.add_parser(
+        "fetch-opencc", help="download the pinned OpenCC dictionaries, license and test cases"
+    )
+    fetch_opencc.add_argument("--commit", required=True)
+    fetch_opencc.add_argument("--tag", help="release tag the commit belongs to, recorded in SOURCE.json")
+    fetch_opencc.add_argument("--dest", default="Vendor/opencc")
+    fetch_opencc.set_defaults(func=command_fetch_opencc)
+
+    build_opencc_parser = subparsers.add_parser(
+        "build-opencc", help="compile the OpenCC dictionaries to FZOpenCC without network access"
+    )
+    build_opencc_parser.add_argument("--source-dir", default="Vendor/opencc")
+    build_opencc_parser.add_argument("--manifest", default="Vendor/opencc/SOURCE.json")
+    build_opencc_parser.add_argument("--output", default="Generated/flickzhuyin.opencc")
+    build_opencc_parser.add_argument(
+        "--golden", help="also write conversion<TAB>input<TAB>expected rows for the Swift tests"
+    )
+    build_opencc_parser.set_defaults(func=command_build_opencc)
 
     args = parser.parse_args(argv)
     return args.func(args)

@@ -14,7 +14,8 @@ Tools/DictionaryCompiler/      Rime 詞典與語言模型離線編譯器與 Pyth
 Vendor/rime-terra-pinyin/      鎖定版本的上游詞典、授權與 manifest
 Vendor/rime-essay/             鎖定版本的上游預設詞彙、授權與 manifest
 Vendor/rime-octagram-data/     鎖定版本的語言模型 manifest 與授權（.gram 本體需另行下載）
-Generated/                     編譯產物（SQLite 詞典、FZGram 語言模型與 report）
+Vendor/opencc/                 鎖定版本的 OpenCC 字典、測試案例、授權與 manifest
+Generated/                     編譯產物（SQLite 詞典、FZGram 語言模型、FZOpenCC 字形轉換與 report）
 ```
 
 ## 架構
@@ -37,7 +38,18 @@ Generated/                     編譯產物（SQLite 詞典、FZGram 語言模�
 - `LexiconChineseInputPipeline` 在初始化時建立並長期持有 store、parser、matcher 與 decoder，把 Top-K 結果轉成精簡的 `InputCandidate`；轉換時依文字合併候選、每組保留分數最低者，raw 注音候選不受合併影響，並在必要時補上 raw 注音候選；若游標前輸入是全範圍的完整單一音節，再從 store 取出該音節所有單字詞條、以同一 scorer 計分後接在最後。
 - 詞本身的 cost 由可替換的 `DecoderScorer` 負責，目前 `BaselineDecoderScorer` 使用 Essay 詞頻 `sourceWeight`、Terra 讀音可信度 `pronunciationWeight`、parser cost 與簡易分詞懲罰；前後詞的搭配由 `GrammarModel` 另外計分。語言模型檔缺失或損毀時 Pipeline 會記錄錯誤並退回無語言模型的排序，輸入不中斷。
 - 語言模型上下文：`ZhuyinComposition.precedingContext` 提供游標前連續的已選文字；若它延伸到組字開頭，`KeyboardViewController` 會在組字開始前讀取 `documentContextBeforeInput`，以 `GrammarContext.tail` 取最後一段連續文字（遇空白、標點或換行即截斷，最多 8 字）接在前面。上下文只存在記憶體中。
+- 地區字形：詞庫、語言模型與使用者學習資料都維持 OpenCC 標準繁體（傳承字形），只在 Pipeline 邊界轉換，見 [地區字形](#地區字形)。
 - Keyboard Extension 的 decoder 上限為 30 個候選（`KeyboardViewController.maximumCandidateCount`）；`KeyboardCore` 的 `DecoderConfiguration.maximumCandidates` 預設為 10。
+
+### 地區字形
+
+`CharacterVariant`（臺灣／香港／大陸／傳承字形，存在 App Group 的 `characterVariant`，預設臺灣）決定 `CandidateTextConverter` 使用的 OpenCC 轉換：輸出用 `t2tw`／`t2hk`／`t2s`，讀取前文用 `tw2t`／`hk2t`／`s2t`，臺灣另有 `tw-phrases`（OpenCC `TWPhrases`）。`MappedOpenCCStore` 以 `mmap` 唯讀映射 `flickzhuyin.opencc`，每個轉換步驟是 OpenCC 的 short-circuit 字典群組：在每個位置由群組中第一個有前綴匹配的字典提供最長匹配，沒有匹配的字元原樣保留。
+
+- Decoder 一律在傳承字形下運作；`LexiconChineseInputPipeline` 先把游標前文字轉回傳承字形再交給語言模型，排序完成後才把候選轉為所選字形。轉換後文字相同的候選只保留排序較前者，所以「為」會沿用「爲」的高詞頻。
+- 臺灣字形下，若候選有臺灣用詞（`軟件` → `軟體`），會緊接在原候選後加入，沿用原候選的注音與分數。兩岸用詞大多讀音不同，因此不直接取代原候選。
+- `InputCandidate` 與 `SelectedChunk` 同時保存顯示文字 `text` 與傳承字形 `canonicalText`；文件插入顯示文字，`UserLearningStore` 記錄 `canonicalText`，所以切換字形後學習資料仍然有效，也不需要有歧義的反向轉換。
+- 後續字詞建議同樣以傳承字形查詢後再轉換。字形設定改變時，`KeyboardViewController` 在下一次 `viewWillAppear` 重建 coordinator 與 Pipeline。
+- `flickzhuyin.opencc` 缺失或損毀時記錄錯誤並退回傳承字形，輸入不中斷。
 
 ### Extension 整合
 
@@ -168,6 +180,28 @@ python3 Tools/DictionaryCompiler/compile_dictionary.py build-grammar \
   --output FlickZhuyinTests/Fixtures/flickzhuyin-tests.gram \
   --report /tmp/flickzhuyin-grammar-fixture-report.json
 ```
+
+## 字形轉換資料編譯
+
+OpenCC 字典只在更新來源時以 `fetch-opencc` 下載（需指定 tag 解析後的 40 字元 commit，tag 只記錄在 manifest）：
+
+```sh
+python3 Tools/DictionaryCompiler/compile_dictionary.py fetch-opencc \
+  --commit 025f371dc76b598d77384fbdab90c937471844d8 --tag ver.1.4.2 \
+  --dest Vendor/opencc
+```
+
+重建 `Generated/flickzhuyin.opencc` 與 Swift golden fixture（不需要網路）：
+
+```sh
+python3 Tools/DictionaryCompiler/compile_dictionary.py build-opencc \
+  --golden FlickZhuyinTests/Fixtures/opencc-cases.tsv
+```
+
+- `opencc_data.py` 解析 OpenCC 文字字典（只取每個詞條的第一個值），依 OpenCC `reverse.py`（含 `# @reverse-prefer:` 標註）產生 `TWVariantsRev`／`HKVariantsRev`，並依 OpenCC 1.4.2 的 `data/config/*.json` 定義轉換鏈；格式細節見該檔開頭說明。
+- 未實作的 OpenCC 功能：segmentation（這些設定都沒有使用）、`may_output_tofu` 字典（OpenCC 預設關閉）與 `STPhrases_GeneratedFromRegionalPhrases`（只影響讀取前文用的 `s2t`）。
+- Python 測試以 OpenCC 上游 `testcases.json` 驗證參考實作（排除 3 個需要 tofu 字典的 `t2s` 案例），並確認納入版控的 `flickzhuyin.opencc` 與 `opencc-cases.tsv` 與來源同步；Swift 測試以同一份 golden 驗證執行期轉換器。
+- 產物約 1.8 MB，納入版控，並只加入 `FlickZhuyinKeyboard` 的 bundle resources；授權全文 `Vendor/opencc/OpenCC-LICENSE.txt` 打包進主 App 與 Extension。
 
 ## 效能
 

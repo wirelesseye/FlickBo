@@ -35,6 +35,17 @@ FlickZhuyin 包含由第三方資料轉換而成的中文詞典。以下授權�
 
 使用的原始檔為 `zh-hant-t-essay-bgw.gram`，內容為以詞為單位的繁體中文 n-gram 統計。FlickZhuyin 將其 darts 雙陣列 trie 解碼為 n-gram 與分數，移除執行期不會查詢的句首（`$` 開頭）條目，改以 UTF-8 重新排序、分區塊前綴壓縮並以 16 位元量化分數，封裝為 `flickzhuyin.gram`。評分方式移植自 BSD 授權的 librime-octagram（<https://github.com/lotem/librime-octagram>）。轉換工具及來源 manifest 可在 FlickZhuyin repository 的 `Tools/DictionaryCompiler/` 與 `Vendor/rime-octagram-data/` 找到。
 
+## OpenCC
+
+- 名稱：Open Chinese Convert（OpenCC）字典資料
+- 作者／維護者：BYVoid 與 OpenCC contributors
+- 來源：<https://github.com/BYVoid/OpenCC>
+- 使用版本：`ver.1.4.2`（commit `025f371dc76b598d77384fbdab90c937471844d8`）
+- 授權：Apache License 2.0
+- 授權全文：隨 App 一併提供的 `OpenCC-LICENSE.txt`，或 <https://www.apache.org/licenses/LICENSE-2.0>
+
+使用的原始檔為 `data/dictionary/` 下的 `TWVariants`、`TWVariantsPhrases`、`TWVariantsRevPhrases`、`TWPhrases`、`HKVariants`、`HKVariantsPhrases`、`HKVariantsRevPhrases`、`TSCharacters`、`TSPhrases`、`STCharacters`、`STPhrases` 與 `CJK_Compatibility_Ideographs`。FlickZhuyin 依 OpenCC 的 `reverse.py` 規則產生 `TWVariantsRev` 與 `HKVariantsRev`，只保留每個詞條的預設轉換結果，並將字典與轉換鏈（`t2tw`、`tw2t`、`t2hk`、`hk2t`、`t2s`、`s2t` 及臺灣用詞）重新編排為排序後的二進位檔 `flickzhuyin.opencc`，以 Swift 重新實作 OpenCC 的字典群組最長匹配轉換；未使用 OpenCC 的程式碼。轉換工具及來源 manifest 可在 FlickZhuyin repository 的 `Tools/DictionaryCompiler/opencc_data.py` 與 `Vendor/opencc/` 找到。
+
 ## CC-CEDICT-derived dictionary data
 
 Terra Pinyin 的詞典 header 說明其參考 CC-CEDICT，並將詞典資料標示為 Creative Commons Attribution-ShareAlike 3.0 Unported（CC BY-SA 3.0）。

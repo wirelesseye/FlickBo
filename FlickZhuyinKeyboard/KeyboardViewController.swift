@@ -25,6 +25,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private var coordinator: ChineseInputCoordinator?
     private var coordinatorHasFullAccess: Bool?
+    private var coordinatorCharacterVariant: CharacterVariant?
 
     private lazy var effectApplier = DocumentEffectApplier(
         client: TextDocumentProxyClient(proxy: textDocumentProxy)
@@ -42,10 +43,13 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         KeyboardSettings.logAppGroupStatus()
-        if let coordinatorHasFullAccess, coordinatorHasFullAccess != hasFullAccess {
+        let accessChanged = coordinatorHasFullAccess.map { $0 != hasFullAccess } ?? false
+        let variantChanged = coordinatorCharacterVariant.map { $0 != KeyboardSettings.characterVariant } ?? false
+        if accessChanged || variantChanged {
             coordinator?.invalidate()
             coordinator = nil
-            self.coordinatorHasFullAccess = nil
+            coordinatorHasFullAccess = nil
+            coordinatorCharacterVariant = nil
         }
         let shows = KeyboardSettings.showsDirectionalSymbols
         let usesFlick = KeyboardSettings.abcUsesFlickLayout
@@ -728,6 +732,7 @@ final class KeyboardViewController: UIInputViewController {
             return coordinator
         }
         let fullAccess = hasFullAccess
+        let characterVariant = KeyboardSettings.characterVariant
         let coordinator = ChineseInputCoordinator { [bundle = Bundle.main] in
             let userStore = KeyboardSettings.userLearningURL.flatMap {
                 try? UserLearningStore(url: $0, writable: fullAccess)
@@ -739,12 +744,14 @@ final class KeyboardViewController: UIInputViewController {
                         maximumCandidates: Self.maximumCandidateCount
                     )
                 ),
-                userLearningStore: userStore
+                userLearningStore: userStore,
+                characterVariant: characterVariant
             )
         }
         coordinator.onChange = { [weak self] in self?.refreshCandidates() }
         self.coordinator = coordinator
         coordinatorHasFullAccess = fullAccess
+        coordinatorCharacterVariant = characterVariant
         return coordinator
     }
 

@@ -12,17 +12,21 @@ extension ZhuyinInputToken {
 struct SelectedChunk: Equatable, Sendable {
     let id: UUID
     let text: String
+    /// `text` in the lexicon's OpenCC Standard form (see `InputCandidate.canonicalText`).
+    let canonicalText: String
     let sourceTokens: [ZhuyinInputToken]
     let pronunciation: [SyllableConstraint]
 
     init(
         id: UUID = UUID(),
         text: String,
+        canonicalText: String? = nil,
         sourceTokens: [ZhuyinInputToken],
         pronunciation: [SyllableConstraint]
     ) {
         self.id = id
         self.text = text
+        self.canonicalText = canonicalText ?? text
         self.sourceTokens = sourceTokens
         self.pronunciation = pronunciation
     }

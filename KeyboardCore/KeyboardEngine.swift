@@ -162,6 +162,7 @@ struct KeyboardEngine: Sendable {
         composition.replaceActiveTokens(
             with: SelectedChunk(
                 text: candidate.text,
+                canonicalText: candidate.canonicalText,
                 sourceTokens: tokens,
                 pronunciation: candidate.pronunciation
             )

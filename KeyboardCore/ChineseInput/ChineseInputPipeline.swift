@@ -26,6 +26,7 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
     private let store: any LexiconStore
     private let bundledStore: any LexiconStore
     private let userLearningStore: UserLearningStore?
+    private let textConverter: CandidateTextConverter
     private let queue = DispatchQueue(
         label: "com.wirelesseye.FlickZhuyin.ChineseInputPipeline",
         qos: .userInitiated
@@ -37,7 +38,9 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         resourceExtension: String = "sqlite3",
         grammarResourceExtension: String? = "gram",
         decoder: Decoder = Decoder(),
-        userLearningStore: UserLearningStore? = nil
+        userLearningStore: UserLearningStore? = nil,
+        characterVariant: CharacterVariant = .traditional,
+        openCCResourceExtension: String = "opencc"
     ) throws {
         let store = try SQLiteLexiconStore(
             bundle: bundle,
@@ -63,16 +66,38 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
                     .error("grammar unavailable: \(String(describing: error), privacy: .public)")
             }
         }
-        try self.init(store: store, decoder: decoder, userLearningStore: userLearningStore)
+        var textConverter = CandidateTextConverter.identity
+        if characterVariant != .traditional {
+            do {
+                let openCC = try MappedOpenCCStore(
+                    bundle: bundle,
+                    resourceName: resourceName,
+                    resourceExtension: openCCResourceExtension
+                )
+                textConverter = try CandidateTextConverter(variant: characterVariant, store: openCC)
+            } catch {
+                // Candidates in the lexicon's own form are still usable.
+                Logger(subsystem: "com.wirelesseye.FlickZhuyin", category: "ChineseInput")
+                    .error("character conversion unavailable: \(String(describing: error), privacy: .public)")
+            }
+        }
+        try self.init(
+            store: store,
+            decoder: decoder,
+            userLearningStore: userLearningStore,
+            textConverter: textConverter
+        )
     }
 
     init(
         store: any LexiconStore,
         decoder: Decoder = Decoder(),
-        userLearningStore: UserLearningStore? = nil
+        userLearningStore: UserLearningStore? = nil,
+        textConverter: CandidateTextConverter = .identity
     ) throws {
         bundledStore = store
         self.userLearningStore = userLearningStore
+        self.textConverter = textConverter
         let combined = CombinedLexiconStore(bundled: store, learned: userLearningStore)
         self.store = combined
         parser = try SyllableParser(store: combined)
@@ -100,10 +125,10 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         fullySelected: Bool
     ) throws -> [(key: UserWordKey, isLearned: Bool)] {
         var entries: [(key: UserWordKey, isLearned: Bool)] = chunks.compactMap { chunk in
-            UserWordKey(text: chunk.text, pronunciation: chunk.pronunciation).map { ($0, false) }
+            UserWordKey(text: chunk.canonicalText, pronunciation: chunk.pronunciation).map { ($0, false) }
         }
         guard fullySelected else { return entries }
-        let text = chunks.map(\.text).joined()
+        let text = chunks.map(\.canonicalText).joined()
         let pronunciation = chunks.flatMap(\.pronunciation)
         guard let key = UserWordKey(text: text, pronunciation: pronunciation),
               (2...8).contains(key.syllableCount)
@@ -140,17 +165,25 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
 
     func suggestions(after precedingText: String) async throws -> [String] {
         guard let grammar = decoder.grammar as? OctagramGrammar else { return [] }
+        let converter = textConverter
         return await withCheckedContinuation { continuation in
             queue.async {
-                continuation.resume(returning: grammar.suggestions(after: precedingText))
+                let suggestions = grammar.suggestions(after: converter.canonical(precedingText))
+                guard !converter.isIdentity else {
+                    continuation.resume(returning: suggestions)
+                    return
+                }
+                var seen = Set<String>()
+                continuation.resume(returning: suggestions.map(converter.display).filter { seen.insert($0).inserted })
             }
         }
     }
 
     private func makeCandidates(
         for tokens: [ZhuyinInputToken],
-        precedingText: String
+        precedingText displayedPrecedingText: String
     ) throws -> [InputCandidate] {
+        let precedingText = textConverter.canonical(displayedPrecedingText)
         let counts = (try? userLearningStore?.countSnapshot()) ?? [:]
         let decoder = Decoder(
             scorer: UserFrequencyScorer(base: self.decoder.scorer, counts: counts),
@@ -189,7 +222,7 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         }
         if promoted.isEmpty {
             result.append(contentsOf: exactCharacters)
-            return result
+            return localized(result)
         }
         let ranked = (result.filter { !$0.isRawFallback } + promoted).sorted { lhs, rhs in
             lhs.score == rhs.score ? lhs.text < rhs.text : lhs.score < rhs.score
@@ -197,6 +230,42 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         let promotedTexts = Set(promoted.map(\.text))
         result = ranked + result.filter(\.isRawFallback)
         result.append(contentsOf: exactCharacters.filter { !promotedTexts.contains($0.text) })
+        return localized(result)
+    }
+
+    /// Converts ranked canonical candidates into the chosen character variant.
+    /// Candidates that become identical (爲 and 為 both show as 為 in Taiwan)
+    /// keep the better ranked one, so the variant inherits the higher weight.
+    /// Regional vocabulary (軟件 -> 軟體) follows its source candidate.
+    private func localized(_ candidates: [InputCandidate]) -> [InputCandidate] {
+        guard !textConverter.isIdentity else { return candidates }
+        var seen = Set<String>()
+        var result: [InputCandidate] = []
+        result.reserveCapacity(candidates.count)
+        func append(_ candidate: InputCandidate, text: String) {
+            guard seen.insert(text).inserted else { return }
+            result.append(
+                InputCandidate(
+                    id: CandidateID(text: text, pronunciation: candidate.pronunciation, tokenRange: candidate.id.tokenRange),
+                    text: text,
+                    canonicalText: candidate.canonicalText,
+                    pronunciation: candidate.pronunciation,
+                    score: candidate.score,
+                    isRawFallback: candidate.isRawFallback
+                )
+            )
+        }
+        for candidate in candidates {
+            guard !candidate.isRawFallback else {
+                result.append(candidate)
+                continue
+            }
+            let text = textConverter.display(candidate.text)
+            append(candidate, text: text)
+            if let phrase = textConverter.phraseVariant(of: text) {
+                append(candidate, text: phrase)
+            }
+        }
         return result
     }
 

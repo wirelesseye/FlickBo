@@ -1,0 +1,64 @@
+{
+  "repository": "https://github.com/BYVoid/OpenCC",
+  "commit": "025f371dc76b598d77384fbdab90c937471844d8",
+  "tag": "ver.1.4.2",
+  "files": {
+    "CJK_Compatibility_Ideographs.txt": {
+      "path": "data/dictionary/CJK_Compatibility_Ideographs.txt",
+      "sha256": "663cc10b7de7c7cee3ff9df1ee963977d6c26c00b23f8fe670fab481283ed4f9"
+    },
+    "HKVariants.txt": {
+      "path": "data/dictionary/HKVariants.txt",
+      "sha256": "e5cd4345303224587102f2c9e4d2b67d2b7e349c6ce9152e4a118f4656cf7302"
+    },
+    "HKVariantsPhrases.txt": {
+      "path": "data/dictionary/HKVariantsPhrases.txt",
+      "sha256": "e23019c35405065d7ea174fe7487e0bde064b1af56532b3986033c9bb98e555c"
+    },
+    "HKVariantsRevPhrases.txt": {
+      "path": "data/dictionary/HKVariantsRevPhrases.txt",
+      "sha256": "35352aef4833c2631b2144bc85623cc44d5a09221dda9c32178ea024300d34d3"
+    },
+    "OpenCC-LICENSE.txt": {
+      "path": "LICENSE",
+      "sha256": "b534e465949558eec2597b04f5092b5e161236a68dfbfd04d547592ac3964308"
+    },
+    "STCharacters.txt": {
+      "path": "data/dictionary/STCharacters.txt",
+      "sha256": "a0ca1601c70648cf48b33c3c6210ccbecc5c7eead4b4c3daf76587ba2c03582b"
+    },
+    "STPhrases.txt": {
+      "path": "data/dictionary/STPhrases.txt",
+      "sha256": "f6eab5e5c6dd7640597878d3dfc6599ee1279d2bc91561eadd8e114194e2925a"
+    },
+    "TSCharacters.txt": {
+      "path": "data/dictionary/TSCharacters.txt",
+      "sha256": "737c21c66f55a419dd6956cb3089476cdefc5a36877452631617696df1e5d925"
+    },
+    "TSPhrases.txt": {
+      "path": "data/dictionary/TSPhrases.txt",
+      "sha256": "362fa1b9a7d6edd04b462a32e12c9fef3adae822ab1dee9c83561cc37c06cb1f"
+    },
+    "TWPhrases.txt": {
+      "path": "data/dictionary/TWPhrases.txt",
+      "sha256": "bcb435b744ee3e522beb9b18fcc5486a36ed4763c6aa642ce18112fb5d604e31"
+    },
+    "TWVariants.txt": {
+      "path": "data/dictionary/TWVariants.txt",
+      "sha256": "e187278e119c427ca561180ac5da5b20e9f8681190458f35c327ce499e95a6a5"
+    },
+    "TWVariantsPhrases.txt": {
+      "path": "data/dictionary/TWVariantsPhrases.txt",
+      "sha256": "36df033675a2e9152927fa8419f0732a061cb4909c5060f25a5cfc9b08ffff06"
+    },
+    "TWVariantsRevPhrases.txt": {
+      "path": "data/dictionary/TWVariantsRevPhrases.txt",
+      "sha256": "5ebfb4bdc938c2b14e01ace378988d5d3dc12462b3496ef1d424951ccd371256"
+    },
+    "testcases.json": {
+      "path": "test/testcases/testcases.json",
+      "sha256": "3f8273c5f432090ec1a8a01bd4d545046ad5a28e69eb41a081c5e3e54d3e402b"
+    }
+  },
+  "retrievedAt": "2026-11-21T06:52:44Z"
+}

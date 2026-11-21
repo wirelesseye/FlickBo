@@ -18,6 +18,10 @@ struct ContentView: View {
         KeyboardSettings.abcUsesFlickLayoutKey,
         store: KeyboardSettings.sharedDefaults
     ) private var abcUsesFlickLayout = KeyboardSettings.abcUsesFlickLayout
+    @AppStorage(
+        KeyboardSettings.characterVariantKey,
+        store: KeyboardSettings.sharedDefaults
+    ) private var characterVariant = KeyboardSettings.characterVariant
     @State private var showsClearConfirmation = false
     @State private var learningMessage: String?
 
@@ -42,6 +46,18 @@ struct ContentView: View {
                         .accessibilityLabel("鍵盤測試文字")
 
                     Group {
+                        LabeledContent("字形") {
+                            Picker("字形", selection: $characterVariant) {
+                                ForEach(CharacterVariant.allCases, id: \.self) { variant in
+                                    Text(variant.title).tag(variant)
+                                }
+                            }
+                            .labelsHidden()
+                        }
+                        Text(characterVariant.settingsDescription)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+
                         Toggle("顯示四方向符號", isOn: $showsDirectionalSymbols)
                         Text("關閉後注音與標點按鍵只顯示中央符號。")
                             .font(.footnote)
@@ -110,4 +126,24 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+}
+
+private extension CharacterVariant {
+    var title: String {
+        switch self {
+        case .taiwan: "臺灣"
+        case .hongKong: "香港"
+        case .mainland: "大陸（簡體）"
+        case .traditional: "傳承字形"
+        }
+    }
+
+    var settingsDescription: String {
+        switch self {
+        case .taiwan: "例如「為什麼」「裡面」；並在候選中加入臺灣用詞，例如「軟件」之後提供「軟體」。"
+        case .hongKong: "例如「為什麼」「裏面」，採用香港常用字形。"
+        case .mainland: "例如「为什么」「里面」，候選轉為簡體字。"
+        case .traditional: "例如「爲什麼」「裏面」，即 OpenCC 標準繁體，與內建詞庫相同。"
+        }
+    }
 }

@@ -15,7 +15,11 @@ struct CandidateID: Hashable, Sendable {
 
 struct InputCandidate: Equatable, Identifiable, Sendable {
     let id: CandidateID
+    /// What the user sees and what is inserted, in the chosen character variant.
     let text: String
+    /// The same candidate in the lexicon's OpenCC Standard form, used for
+    /// user learning so it survives switching character variants.
+    let canonicalText: String
     let pronunciation: [SyllableConstraint]
     let score: Double
     let isRawFallback: Bool
@@ -23,12 +27,14 @@ struct InputCandidate: Equatable, Identifiable, Sendable {
     init(
         id: CandidateID,
         text: String,
+        canonicalText: String? = nil,
         pronunciation: [SyllableConstraint],
         score: Double,
         isRawFallback: Bool
     ) {
         self.id = id
         self.text = text
+        self.canonicalText = canonicalText ?? text
         self.pronunciation = pronunciation
         self.score = score
         self.isRawFallback = isRawFallback

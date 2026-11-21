@@ -1,6 +1,6 @@
 # 詞典與語言模型資料授權
 
-本文件涵蓋 `flickzhuyin.sqlite3` 與 `flickzhuyin.gram`。
+本文件涵蓋 `flickzhuyin.sqlite3`、`flickzhuyin.gram` 與 `flickzhuyin.opencc`。
 
 ## flickzhuyin.sqlite3
 
@@ -32,3 +32,11 @@ Terra 部分提供字音、多音字與明確詞條，依 CC BY-SA 3.0 提供；
 完整 attribution 與修改說明見 repository 根目錄的 `THIRD_PARTY_NOTICES.md`。
 
 此資料不附帶任何擔保。
+
+## flickzhuyin.opencc
+
+- 上游：<https://github.com/BYVoid/OpenCC>（`ver.1.4.2`，`data/dictionary/`）
+- Commit：`025f371dc76b598d77384fbdab90c937471844d8`
+- 授權：Apache License 2.0，<https://www.apache.org/licenses/LICENSE-2.0>（全文見 `Vendor/opencc/OpenCC-LICENSE.txt`）
+
+轉換包括產生反向字典、只保留預設轉換結果、依 UTF-8 排序並與轉換鏈一同封裝為 FZOpenCC 格式。

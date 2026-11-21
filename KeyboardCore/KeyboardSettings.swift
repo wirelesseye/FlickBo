@@ -9,6 +9,7 @@ enum KeyboardSettings {
     static let autoCommitCompositionKey = "autoCommitComposition"
     static let remembersSelectionsKey = "remembersSelections"
     static let abcUsesFlickLayoutKey = "abcUsesFlickLayout"
+    static let characterVariantKey = "characterVariant"
 
     private static let appGroupCandidates: [String] = {
         guard let bundleID = Bundle.main.bundleIdentifier,
@@ -85,6 +86,14 @@ enum KeyboardSettings {
     static var abcUsesFlickLayout: Bool {
         get { boolValue(for: abcUsesFlickLayoutKey) }
         set { sharedDefaults?.set(newValue, forKey: abcUsesFlickLayoutKey) }
+    }
+
+    /// Character forms for Chinese candidates; defaults to Taiwan.
+    static var characterVariant: CharacterVariant {
+        get {
+            (sharedDefaults?.string(forKey: characterVariantKey)).flatMap(CharacterVariant.init(rawValue:)) ?? .taiwan
+        }
+        set { sharedDefaults?.set(newValue.rawValue, forKey: characterVariantKey) }
     }
 
     static var userLearningURL: URL? {
