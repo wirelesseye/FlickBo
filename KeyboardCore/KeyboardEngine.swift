@@ -7,7 +7,7 @@ struct KeyboardEngine: Sendable {
     private(set) var lastCommittedChunks: [SelectedChunk] = []
     private(set) var lastCommitWasFullySelected = false
     private var lastShiftTap: TimeInterval?
-    /// Width used for digits typed in number mode and for spaces.
+    /// Width used for number-mode digits, ABC letters and spaces.
     var characterWidth: CharacterWidth = .half
     /// Variants of the symbol just inserted, shown until the next input.
     private(set) var symbolCandidates: [String] = []
@@ -47,9 +47,9 @@ struct KeyboardEngine: Sendable {
         switch key {
         case let .letter(character):
             guard mode == .abc else { return .none }
-            let text = letterCase == .lowercase
+            let text = characterWidth.apply(to: letterCase == .lowercase
                 ? String(character).lowercased()
-                : String(character).uppercased()
+                : String(character).uppercased())
             if letterCase == .shifted {
                 letterCase = .lowercase
             }

@@ -747,9 +747,9 @@ final class KeyboardViewController: UIInputViewController {
             for (key, button) in keyButtons {
                 switch key {
                 case let .letter(character):
-                    let title = engine.letterCase == .lowercase
+                    let title = engine.characterWidth.apply(to: engine.letterCase == .lowercase
                         ? String(character).lowercased()
-                        : String(character).uppercased()
+                        : String(character).uppercased())
                     button.setTitle(title, for: .normal)
                 case let .digit(character):
                     button.setTitle(String(character), for: .normal)

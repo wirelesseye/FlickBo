@@ -297,6 +297,16 @@ final class KeyboardEngineTests: XCTestCase {
         }
     }
 
+    func testABCLettersFollowCharacterWidth() {
+        var engine = KeyboardEngine(mode: .abc)
+        engine.characterWidth = .full
+        XCTAssertEqual(engine.update(for: .letter("a")).documentEffects, [.insertText("ａ")])
+        _ = engine.update(for: .shift, at: 0)
+        XCTAssertEqual(engine.update(for: .letter("a")).documentEffects, [.insertText("Ａ")])
+        engine.characterWidth = .half
+        XCTAssertEqual(engine.update(for: .letter("a")).documentEffects, [.insertText("a")])
+    }
+
     func testSpaceDuringCompositionIgnoresWidth() {
         var engine = KeyboardEngine()
         engine.characterWidth = .full
