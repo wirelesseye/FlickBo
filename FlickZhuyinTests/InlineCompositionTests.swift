@@ -1086,14 +1086,14 @@ final class CandidateViewLayoutTests: XCTestCase {
     }
 
     func testSuggestionHasDistinctAccessibilityText() {
-        let button = CandidateButton(type: .custom)
+        let button = CandidateButton()
         button.update(with: .suggestion("很好"), adjustsTitleToFit: false)
         XCTAssertEqual(button.accessibilityIdentifier, "suggestion-很好")
         XCTAssertEqual(button.accessibilityLabel, "建議：很好")
     }
 
     func testCandidateButtonShowsBadges() {
-        let button = CandidateButton(type: .custom)
+        let button = CandidateButton()
         button.update(with: .symbol("１"), adjustsTitleToFit: false)
         XCTAssertEqual(button.badgeText, "全")
         XCTAssertEqual(button.accessibilityLabel, "全形：１")
@@ -1101,7 +1101,7 @@ final class CandidateViewLayoutTests: XCTestCase {
         XCTAssertNil(button.badgeText)
         button.update(with: .suggestion("很好"), adjustsTitleToFit: false)
         XCTAssertNil(button.badgeText)
-        XCTAssertEqual(button.contentEdgeInsets.right, CandidateMetrics.contentInsets.right)
+        XCTAssertEqual(button.titleInsets.right, CandidateMetrics.contentInsets.right)
     }
 
     func testBadgeWidensCandidate() {
@@ -1111,9 +1111,9 @@ final class CandidateViewLayoutTests: XCTestCase {
             CandidateMetrics.itemWidth(.symbol("，")),
             CandidateMetrics.itemWidth(.suggestion("，")) + badgeWidth
         )
-        let button = CandidateButton(type: .custom)
+        let button = CandidateButton()
         button.update(with: .symbol("，"), adjustsTitleToFit: false)
-        XCTAssertEqual(button.contentEdgeInsets.right, CandidateMetrics.contentInsets.right + badgeWidth)
+        XCTAssertEqual(button.titleInsets.right, CandidateMetrics.contentInsets.right + badgeWidth)
     }
 
     func testCandidateBarCountsEveryCandidateThatFits() {

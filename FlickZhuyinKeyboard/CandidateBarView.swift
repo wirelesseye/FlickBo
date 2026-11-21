@@ -29,7 +29,7 @@ final class CandidateCell: UICollectionViewCell {
 
     private(set) var candidate: CandidateItem?
     private var onSelect: ((CandidateItem) -> Void)?
-    private let button = CandidateButton(type: .custom)
+    private let button = CandidateButton()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -100,13 +100,16 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
     private let dividerView = UIView()
     private let hitSurfaceView = UIView()
     private let toolbarView = UIStackView()
-    private let settingsButton = ToolbarButton(type: .custom)
-    private let dismissButton = ToolbarButton(type: .custom)
-    private let widthButton = ToolbarButton(type: .custom)
+    private let settingsButton = ToolbarButton()
+    private let dismissButton = ToolbarButton()
+    private let widthButton = ToolbarButton()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .clear
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: Self, _) in
+            self.contentSizeCategoryDidChange()
+        }
 
         flowLayout.scrollDirection = .horizontal
         flowLayout.minimumInteritemSpacing = Self.collapsedSpacing
@@ -137,21 +140,17 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(collectionView)
 
-        expandButton.setImage(
-            UIImage(
-                systemName: "chevron.down",
-                withConfiguration: UIImage.SymbolConfiguration(pointSize: Self.expandSymbolPointSize, weight: .medium)
-            ),
-            for: .normal
-        )
-        expandButton.tintColor = .label
-        expandButton.backgroundColor = .clear
-        expandButton.contentEdgeInsets = UIEdgeInsets(
+        var expandConfiguration = UIButton.Configuration.plain()
+        expandConfiguration.image = Self.expandSymbol(expanded: false)
+        expandConfiguration.baseForegroundColor = .label
+        expandConfiguration.contentInsets = NSDirectionalEdgeInsets(
             top: 0,
-            left: Self.expandButtonLeadingInset,
+            leading: Self.expandButtonLeadingInset,
             bottom: 0,
-            right: 0
+            trailing: 0
         )
+        expandButton.configuration = expandConfiguration
+        expandButton.backgroundColor = .clear
         expandButton.accessibilityIdentifier = "candidate-expand-toggle"
         expandButton.accessibilityLabel = "展開候選字詞"
         expandButton.isEnabled = false
@@ -179,12 +178,9 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
         insertSubview(hitSurfaceView, belowSubview: expandButton)
 
         // Toolbar shown in place of candidates while there is no input.
-        settingsButton.setImage(
-            UIImage(
-                systemName: "gearshape",
-                withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
-            ),
-            for: .normal
+        settingsButton.image = UIImage(
+            systemName: "gearshape",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
         )
         settingsButton.accessibilityIdentifier = "toolbar-settings"
         settingsButton.accessibilityLabel = "設定"
@@ -194,12 +190,9 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
         )
         settingsButton.widthAnchor.constraint(equalToConstant: 44).isActive = true
 
-        dismissButton.setImage(
-            UIImage(
-                systemName: "keyboard.chevron.compact.down",
-                withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
-            ),
-            for: .normal
+        dismissButton.image = UIImage(
+            systemName: "keyboard.chevron.compact.down",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
         )
         dismissButton.accessibilityIdentifier = "toolbar-dismiss-keyboard"
         dismissButton.accessibilityLabel = "隱藏鍵盤"
@@ -294,14 +287,7 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
             return
         }
         isExpanded = expanded
-        let symbol = expanded ? "chevron.up" : "chevron.down"
-        expandButton.setImage(
-            UIImage(
-                systemName: symbol,
-                withConfiguration: UIImage.SymbolConfiguration(pointSize: Self.expandSymbolPointSize, weight: .medium)
-            ),
-            for: .normal
-        )
+        expandButton.configuration?.image = Self.expandSymbol(expanded: expanded)
         expandButton.accessibilityLabel = expanded ? "收合候選字詞" : "展開候選字詞"
         dividerView.isHidden = expanded || !hasCandidates
         collectionView.isScrollEnabled = !expanded
@@ -350,13 +336,14 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
         }
     }
 
-    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        guard previousTraitCollection?.preferredContentSizeCategory
-            != traitCollection.preferredContentSizeCategory
-        else {
-            return
-        }
+    private static func expandSymbol(expanded: Bool) -> UIImage? {
+        UIImage(
+            systemName: expanded ? "chevron.up" : "chevron.down",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: expandSymbolPointSize, weight: .medium)
+        )
+    }
+
+    private func contentSizeCategoryDidChange() {
         widthCache.removeAll()
         flowLayout.invalidateLayout()
         layoutIfNeeded()
@@ -418,12 +405,9 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
 
     private func updateWidthButton() {
         let isFull = characterWidth == .full
-        widthButton.setImage(
-            UIImage(
-                systemName: isFull ? "circle" : "moon",
-                withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
-            ),
-            for: .normal
+        widthButton.image = UIImage(
+            systemName: isFull ? "circle" : "moon",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
         )
         widthButton.accessibilityLabel = isFull ? "全形，點按切換為半形" : "半形，點按切換為全形"
     }
@@ -496,39 +480,67 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
     }
 }
 
-final class CandidateButton: UIButton {
-    private let badgeLabel = UILabel()
-
-    var badgeText: String? { badgeLabel.isHidden ? nil : badgeLabel.text }
-
-    func update(with candidate: CandidateItem, adjustsTitleToFit: Bool) {
-        configuration = nil
-        badgeLabel.text = candidate.badge
-        badgeLabel.isHidden = candidate.badge == nil
-        var insets = CandidateMetrics.contentInsets
-        insets.right += CandidateMetrics.badgeWidth(candidate.badge)
-        contentEdgeInsets = insets
-        setTitle(candidate.text, for: .normal)
-        setTitleColor(.label, for: .normal)
-        titleLabel?.font = .preferredFont(forTextStyle: .title3)
-        titleLabel?.adjustsFontForContentSizeCategory = true
-        titleLabel?.adjustsFontSizeToFitWidth = adjustsTitleToFit
-        titleLabel?.minimumScaleFactor = adjustsTitleToFit ? 0.6 : 1
-        titleLabel?.lineBreakMode = .byClipping
-        accessibilityIdentifier = candidate.accessibilityIdentifier
-        accessibilityLabel = candidate.accessibilityLabel
-    }
-
+/// Plain control with the key-colored pressed background shared by candidates and toolbar icons.
+/// A `UIControl` instead of `UIButton` so layout doesn't depend on deprecated button insets.
+class CandidateHighlightControl: UIControl {
     override var isHighlighted: Bool {
-        didSet { updateAppearance() }
+        didSet { backgroundColor = isHighlighted ? KeyboardButton.standardKeyColor : .clear }
     }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        contentEdgeInsets = CandidateMetrics.contentInsets
+        backgroundColor = .clear
         layer.cornerRadius = 10
         layer.cornerCurve = .continuous
         clipsToBounds = true
+        isAccessibilityElement = true
+        accessibilityTraits = .button
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+final class CandidateButton: CandidateHighlightControl {
+    let titleLabel = UILabel()
+    private let badgeLabel = UILabel()
+    private var titleLeading: NSLayoutConstraint!
+    private var titleTrailing: NSLayoutConstraint!
+
+    var badgeText: String? { badgeLabel.isHidden ? nil : badgeLabel.text }
+
+    /// Horizontal space around the title; the right side includes room for a badge.
+    private(set) var titleInsets = CandidateMetrics.contentInsets {
+        didSet {
+            titleLeading.constant = titleInsets.left
+            titleTrailing.constant = -titleInsets.right
+        }
+    }
+
+    func update(with candidate: CandidateItem, adjustsTitleToFit: Bool) {
+        badgeLabel.text = candidate.badge
+        badgeLabel.isHidden = candidate.badge == nil
+        var insets = CandidateMetrics.contentInsets
+        insets.right += CandidateMetrics.badgeWidth(candidate.badge)
+        titleInsets = insets
+        titleLabel.text = candidate.text
+        titleLabel.adjustsFontSizeToFitWidth = adjustsTitleToFit
+        titleLabel.minimumScaleFactor = adjustsTitleToFit ? 0.6 : 1
+        accessibilityIdentifier = candidate.accessibilityIdentifier
+        accessibilityLabel = candidate.accessibilityLabel
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        titleLabel.font = .preferredFont(forTextStyle: .title3)
+        titleLabel.adjustsFontForContentSizeCategory = true
+        titleLabel.textColor = .label
+        titleLabel.textAlignment = .center
+        titleLabel.lineBreakMode = .byClipping
+        titleLabel.isAccessibilityElement = false
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(titleLabel)
 
         // Occupies its own space right of the title; `update` widens the right inset for it.
         badgeLabel.font = CandidateMetrics.badgeFont
@@ -537,48 +549,54 @@ final class CandidateButton: UIButton {
         badgeLabel.isAccessibilityElement = false
         badgeLabel.translatesAutoresizingMaskIntoConstraints = false
         addSubview(badgeLabel)
+
+        titleLeading = titleLabel.leadingAnchor.constraint(
+            equalTo: leadingAnchor,
+            constant: titleInsets.left
+        )
+        titleTrailing = titleLabel.trailingAnchor.constraint(
+            equalTo: trailingAnchor,
+            constant: -titleInsets.right
+        )
         NSLayoutConstraint.activate([
+            titleLeading,
+            titleTrailing,
+            titleLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             badgeLabel.topAnchor.constraint(equalTo: topAnchor, constant: 3),
             badgeLabel.trailingAnchor.constraint(
                 equalTo: trailingAnchor,
                 constant: -CandidateMetrics.contentInsets.right
             )
         ])
-        updateAppearance()
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-
-    private func updateAppearance() {
-        alpha = 1
-        titleLabel?.alpha = 1
-        backgroundColor = isHighlighted ? KeyboardButton.standardKeyColor : .clear
     }
 }
 
 /// Toolbar icon button that highlights with a key-colored background, matching candidates.
-final class ToolbarButton: UIButton {
-    override var isHighlighted: Bool {
-        didSet { updateAppearance() }
+final class ToolbarButton: CandidateHighlightControl {
+    private let imageView = UIImageView()
+
+    var image: UIImage? {
+        get { imageView.image }
+        set { imageView.image = newValue }
     }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        tintColor = .label
-        adjustsImageWhenHighlighted = false
-        layer.cornerRadius = 10
-        layer.cornerCurve = .continuous
-        clipsToBounds = true
-        updateAppearance()
+        imageView.tintColor = .label
+        imageView.contentMode = .center
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(imageView)
+        NSLayoutConstraint.activate([
+            imageView.centerXAnchor.constraint(equalTo: centerXAnchor),
+            imageView.centerYAnchor.constraint(equalTo: centerYAnchor)
+        ])
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-
-    private func updateAppearance() {
-        backgroundColor = isHighlighted ? KeyboardButton.standardKeyColor : .clear
     }
 }

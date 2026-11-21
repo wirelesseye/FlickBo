@@ -111,6 +111,10 @@ class KeyboardButton: UIButton {
 
         titleLabel?.font = .systemFont(ofSize: 20, weight: .regular)
         setTitleColor(.label, for: .normal)
+        // The pressed color is blended per light/dark appearance.
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: KeyboardButton, _) in
+            self.updateAppearance()
+        }
         updateAppearance()
     }
 
@@ -128,11 +132,6 @@ class KeyboardButton: UIButton {
         super.layoutSubviews()
         sendSubviewToBack(tintView)
         tintView.frame = bounds
-    }
-
-    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        updateAppearance()
     }
 
     private func updateAppearance() {

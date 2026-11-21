@@ -17,6 +17,9 @@ final class ExpandedCandidateView: UIView, UICollectionViewDataSource, UICollect
         super.init(frame: frame)
         backgroundColor = .clear
         accessibilityIdentifier = "expanded-candidate-list"
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: Self, _) in
+            self.contentSizeCategoryDidChange()
+        }
 
         flowLayout.scrollDirection = .vertical
         flowLayout.minimumInteritemSpacing = Self.spacing
@@ -75,13 +78,7 @@ final class ExpandedCandidateView: UIView, UICollectionViewDataSource, UICollect
         collectionView.reloadData()
     }
 
-    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        guard previousTraitCollection?.preferredContentSizeCategory
-            != traitCollection.preferredContentSizeCategory
-        else {
-            return
-        }
+    private func contentSizeCategoryDidChange() {
         widthCache.removeAll()
         collectionView.reloadData()
     }
