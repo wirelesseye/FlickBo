@@ -34,9 +34,9 @@ Generated/                     編譯產物（SQLite 詞典、FZGram 語言模�
 - `MappedGramStore` 以 `mmap` 唯讀映射 `flickzhuyin.gram`（FZGram 格式，見 [語言模型編譯](#語言模型編譯)），頁面為可回收的 file-backed clean pages，不計入 Extension 常駐記憶體；查詢先在區塊前綴索引上二分搜尋，再在 16 個 key 的前綴壓縮區塊內循序比對，同時回報是否存在更長的 key 以便提早中止。
 - `OctagramGrammar` 逐行移植 librime-octagram 的 `Octagram::Query`（預設 `collocation_max_length` 4、`collocation_min_length` 3、penalty −12／−12／−24／−18）：取上下文最後 3 字的各後綴與詞的前 3 字各前綴組成 key，分數為 `value / 10000` 加上 collocation 或 weak collocation penalty，句尾另查 `詞$`；每個上下文建立一個 scorer，快取以詞首字開頭的查詢結果。Decoder 與 librime 相同，把 `grammarWeight × (−分數)` 加進每個分段的 cost：沒有搭配的詞、沒有上下文的第一個詞與 raw 注音音節都付出 no-collocation penalty（預設 12），有搭配時較低；這個每段固定成本也讓搜尋偏好較少的分段。
 
-`FlickZhuyinTests/Fixtures/ranking-gold.tsv` 是代表性的排序 gold set（上下文、注音、預期首選），`GrammarProductionIntegrationTests.testRankingGoldSet` 會輸出無語言模型與多個 `grammarWeight` 下的首選正確數，並要求預設設定不低於無語言模型。目前 25 句中無語言模型 23 句、語言模型 24 句正確（`grammarWeight` 0.2–1.0 結果相同，預設沿用 librime 的 1.0）。曾試過「以 floor 為基準只給獎勵」的形式，會因每多切一段就多一次獎勵而過度分詞（僅 2 句正確），因此改回 librime 的形式。
+`FlickZhuyinTests/Fixtures/ranking-gold.tsv` 是代表性的排序 gold set（上下文、注音、預期首選），`GrammarProductionIntegrationTests.testRankingGoldSet` 會輸出無語言模型與多個 `grammarWeight` 下的首選正確數，並要求預設設定不低於無語言模型。gold set 另含常見多音字單字（ㄨㄟˋ→爲、ㄉㄜ˙→的、ㄒㄧㄥˊ→行…）與詞組。目前 49 句中無語言模型 44 句、語言模型 45 句正確（`grammarWeight` 0.5–1.0 結果相同，預設沿用 librime 的 1.0）；仍錯的「長」「長大」來自 Terra 的讀音權重（`長 zhang3 10%`），不是詞頻計分的問題。曾試過「以 floor 為基準只給獎勵」的形式，會因每多切一段就多一次獎勵而過度分詞（僅 2 句正確），因此改回 librime 的形式。
 - `LexiconChineseInputPipeline` 在初始化時建立並長期持有 store、parser、matcher 與 decoder，把 Top-K 結果轉成精簡的 `InputCandidate`；轉換時依文字合併候選、每組保留分數最低者，raw 注音候選不受合併影響，並在必要時補上 raw 注音候選；若游標前輸入是全範圍的完整單一音節，再從 store 取出該音節所有單字詞條、以同一 scorer 計分後接在最後。
-- 詞本身的 cost 由可替換的 `DecoderScorer` 負責，目前 `BaselineDecoderScorer` 使用 Essay 詞頻 `sourceWeight`、Terra 讀音可信度 `pronunciationWeight`、parser cost 與簡易分詞懲罰；前後詞的搭配由 `GrammarModel` 另外計分。語言模型檔缺失或損毀時 Pipeline 會記錄錯誤並退回無語言模型的排序，輸入不中斷。
+- 詞本身的 cost 由可替換的 `DecoderScorer` 負責，目前 `BaselineDecoderScorer` 使用 Essay 詞頻 `sourceWeight`、Terra 讀音可信度 `pronunciationWeight`、parser cost 與簡易分詞懲罰。詞頻成本為 `frequencyCostScale × (1 − sourceWeight)`（預設 5）：由於 `sourceWeight = log1p(f) / log1p(max)`，這等於相對詞頻負對數的固定倍數（約真實對數機率尺度的三分之一），讀音成本則為 `-log(pronunciationWeight)`。原本的 `-log(sourceWeight)` 把對數又取一次對數，「爲」比「未」高約 12 倍的詞頻只換得 0.22 的成本差，抵不過「爲」兩個讀音各 50% 的 0.69 讀音成本，單打ㄨㄟˋ時「爲」排不進前 8 名。在 gold set 上掃描 1–15.4 的倍數，3–8 都優於舊公式，5 在有無語言模型時都最好（無 44／有 45，舊公式 41／42）。使用者選字次數的成本減免（上限 2.5）沿用原值；前後詞的搭配由 `GrammarModel` 另外計分。語言模型檔缺失或損毀時 Pipeline 會記錄錯誤並退回無語言模型的排序，輸入不中斷。
 - 語言模型上下文：`ZhuyinComposition.precedingContext` 提供游標前連續的已選文字；若它延伸到組字開頭，`KeyboardViewController` 會在組字開始前讀取 `documentContextBeforeInput`，以 `GrammarContext.tail` 取最後一段連續文字（遇空白、標點或換行即截斷，最多 8 字）接在前面。上下文只存在記憶體中。
 - 地區字形：詞庫、語言模型與使用者學習資料都維持 OpenCC 標準繁體（傳承字形），只在 Pipeline 邊界轉換，見 [地區字形](#地區字形)。
 - Keyboard Extension 的 decoder 上限為 30 個候選（`KeyboardViewController.maximumCandidateCount`）；`KeyboardCore` 的 `DecoderConfiguration.maximumCandidates` 預設為 10。
@@ -61,7 +61,7 @@ pinned Terra 詞典經過碼表最小化，常見詞如「注音」「你好」�
 
 自動標音時，若某字已有正權重讀音，Terra 明確標為 `0%` 的罕見讀音不參與組合（未標權重的讀音仍會保留，例如「於」合成「於是」只會得到 `ㄩˊ ㄕˋ`）；只有當所有讀音皆為 `0%` 或未標權重時，才保留全部讀音作為 fallback。
 
-合併後的 SQLite 以 `(text, base_key, tone_key)` 為唯一鍵，Essay 詞頻經 log1p 正規化為 `source_weight`，因此「注音」「你好」等詞是帶權重的單一詞條，而不是多個無權重單字臨時拼接。schema v4 把詞頻與發音可信度分開：`source_weight` 只存 Essay 詞頻，`pronunciation_weight` 存 Terra 的讀音權重；Terra 單字讀音低於 5% 時以 5% 為下限（例如「於」的 `ㄨˉ` 保留為 0.05，不再被 Essay 詞頻放大），Runtime 成本為詞頻成本加 `-log(pronunciation_weight)`。schema v4 也為每個 canonical 讀音寫入 `initial_key`（每個音節第一個注音符號，以 U+001F 分隔）並建立 `pronunciation_initial_key` 索引，供聲母縮寫與完整／縮寫混合的 pattern 查詢等值掃描。無法標音或超過組合上限的詞條會統計在編譯報告中，不會靜默遺失。
+合併後的 SQLite 以 `(text, base_key, tone_key)` 為唯一鍵，Essay 詞頻經 log1p 正規化為 `source_weight`，因此「注音」「你好」等詞是帶權重的單一詞條，而不是多個無權重單字臨時拼接。schema v4 把詞頻與發音可信度分開：`source_weight` 只存 Essay 詞頻，`pronunciation_weight` 存 Terra 的讀音權重；Terra 單字讀音低於 5% 時以 5% 為下限（例如「於」的 `ㄨˉ` 保留為 0.05，不再被 Essay 詞頻放大），Runtime 成本為詞頻成本（見 `DecoderConfiguration.frequencyCostScale`）加 `-log(pronunciation_weight)`。schema v4 也為每個 canonical 讀音寫入 `initial_key`（每個音節第一個注音符號，以 U+001F 分隔）並建立 `pronunciation_initial_key` 索引，供聲母縮寫與完整／縮寫混合的 pattern 查詢等值掃描。無法標音或超過組合上限的詞條會統計在編譯報告中，不會靜默遺失。
 
 ## 建置與測試
 

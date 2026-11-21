@@ -10,6 +10,15 @@ enum DecoderError: Error, Equatable {
 struct DecoderConfiguration: Equatable, Sendable {
     var maximumCandidates = 10
     var weightedEntryFloor = 1e-9
+    /// Frequency cost of a weighted word is `frequencyCostScale * (1 - w)`,
+    /// where `w = log1p(f) / log1p(max)` is the stored Essay weight. That is
+    /// `frequencyCostScale / log1p(max)` times the word's negative log
+    /// relative frequency, so frequency ratios keep their meaning: 爲 (about
+    /// 12 times as frequent as 未) is no longer outweighed by its 50% reading
+    /// prior. The old `-log(w)` compressed a 12x frequency gap into 0.22.
+    /// 5 (about a third of the true log-probability scale) scored best on
+    /// `ranking-gold.tsv` with and without the grammar.
+    var frequencyCostScale = 5.0
     var unweightedWordCost = 8.0
     var wordBoundaryCost = 0.35
     var completeRawCost = 12.0
@@ -35,6 +44,9 @@ struct DecoderConfiguration: Equatable, Sendable {
         }
         guard weightedEntryFloor > 0, weightedEntryFloor < 1 else {
             throw DecoderError.invalidConfiguration("weightedEntryFloor must be within 0..<1")
+        }
+        guard frequencyCostScale.isFinite, frequencyCostScale > 0 else {
+            throw DecoderError.invalidConfiguration("frequencyCostScale must be finite and positive")
         }
         let costs: [(String, Double)] = [
             ("unweightedWordCost", unweightedWordCost),

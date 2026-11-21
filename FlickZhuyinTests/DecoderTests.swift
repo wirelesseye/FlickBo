@@ -96,9 +96,17 @@ private func assertSegmentsCover(_ candidate: DecodedCandidate, tokenCount: Int,
 final class DecoderScorerTests: XCTestCase {
     private let scorer = BaselineDecoderScorer()
 
-    func testWeightedWordCostUsesNegativeLogWeight() throws {
+    func testWeightedWordCostIsLinearInLogFrequencyWeight() throws {
         let word = testWord(0, 1, text: "中", syllables: [SyllableConstraint(base: "ㄓ", tone: .first)], weight: 0.25, parserCost: 0.5)
-        XCTAssertEqual(try scorer.cost(for: word), 0.5 + (-log(0.25)) + 0.35, accuracy: 1e-12)
+        XCTAssertEqual(try scorer.cost(for: word), 0.5 + 5 * 0.75 + 0.35, accuracy: 1e-12)
+    }
+
+    func testFrequencyGapOutweighsAnEvenReadingSplit() throws {
+        let syllable = [SyllableConstraint(base: "ㄨㄟ", tone: .fourth)]
+        // 爲 is about 12 times as frequent as 未 but split 50/50 between two readings.
+        let frequent = testWord(0, 1, text: "爲", syllables: syllable, weight: 0.797, pronunciationWeight: 0.5)
+        let rare = testWord(0, 1, text: "未", syllables: syllable, weight: 0.638)
+        XCTAssertLessThan(try scorer.cost(for: frequent), try scorer.cost(for: rare))
     }
 
     func testUnweightedWordCostUsesConfigurationValue() throws {
@@ -120,7 +128,7 @@ final class DecoderScorerTests: XCTestCase {
         let word = testWord(0, 1, text: "中", syllables: [SyllableConstraint(base: "ㄓ", tone: .first)], weight: 0)
         let cost = try scorer.cost(for: word)
         XCTAssertTrue(cost.isFinite)
-        XCTAssertEqual(cost, (-log(1e-9)) + 0.35, accuracy: 1e-9)
+        XCTAssertEqual(cost, 5 + 0.35, accuracy: 1e-9)
     }
 
     func testPronunciationWeightAddsPriorCost() throws {
@@ -134,7 +142,7 @@ final class DecoderScorerTests: XCTestCase {
         )
         XCTAssertEqual(
             try scorer.cost(for: word),
-            0.35 + (-log(0.25)) + (-log(0.05)),
+            0.35 + 5 * 0.75 + (-log(0.05)),
             accuracy: 1e-12
         )
     }
@@ -325,6 +333,12 @@ final class DecoderGraphValidationTests: XCTestCase {
             badCost.unweightedWordCost = cost
             assertInvalidConfiguration(badCost)
         }
+
+        for scale in [0.0, -1.0, Double.nan, Double.infinity] {
+            var badScale = DecoderConfiguration()
+            badScale.frequencyCostScale = scale
+            assertInvalidConfiguration(badScale)
+        }
     }
 
     private func assertInvalidConfiguration(_ configuration: DecoderConfiguration, file: StaticString = #filePath, line: UInt = #line) {
@@ -443,7 +457,7 @@ final class DecoderTests: XCTestCase {
             SyllableConstraint(base: "ㄓ", tone: .first),
             SyllableConstraint(base: "ㄨ", tone: .first),
         ])
-        XCTAssertEqual(merged[0].score, (-log(0.9)) + 0.35, accuracy: 1e-12)
+        XCTAssertEqual(merged[0].score, 5 * 0.1 + 0.35, accuracy: 1e-12)
         XCTAssertEqual(merged[0].segments.count, 1)
     }
 
