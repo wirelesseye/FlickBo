@@ -102,3 +102,81 @@ def parse_emoji_words(text: str, source_label: str) -> dict[str, list[str]]:
 def format_emoji_table(table: dict[str, list[str]]) -> str:
     keys = sorted(table, key=lambda key: key.encode("utf-8"))
     return "".join(f"{key}\t{' '.join(table[key])}\n" for key in keys)
+
+
+# Unicode emoji-test.txt → emoji palette catalog
+#
+# The palette lists the fully-qualified emoji of emoji-test.txt in its CLDR
+# order (recommended for keyboards), one line each:
+#
+#     group<TAB>emoji version<TAB>emoji<TAB>CLDR short name
+#
+# Skin tone variants are left out (the palette shows the default yellow
+# form), as is the Component group. The emoji version lets the keyboard hide
+# emoji newer than the system font can draw.
+
+CATALOG_FORMAT_VERSION = 1
+CATALOG_GROUPS = {
+    "Smileys & Emotion": "smileys",
+    "People & Body": "people",
+    "Animals & Nature": "animals",
+    "Food & Drink": "food",
+    "Travel & Places": "travel",
+    "Activities": "activities",
+    "Objects": "objects",
+    "Symbols": "symbols",
+    "Flags": "flags",
+}
+SKIPPED_GROUPS = frozenset({"Component"})
+
+
+def parse_emoji_test(text: str, source_label: str) -> list[tuple[str, str, str, str]]:
+    """Returns (group id, version, emoji, name) rows in file order."""
+    rows: list[tuple[str, str, str, str]] = []
+    errors: list[str] = []
+    group: str | None = None
+    seen: set[str] = set()
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if line.startswith("# group:"):
+            name = line.removeprefix("# group:").strip()
+            if name in SKIPPED_GROUPS:
+                group = None
+            elif name in CATALOG_GROUPS:
+                group = CATALOG_GROUPS[name]
+            else:
+                errors.append(f"{source_label}:{line_number}: unknown group {name!r}")
+                group = None
+            continue
+        if not line or line.startswith("#"):
+            continue
+        try:
+            fields, comment = line.split("#", 1)
+            code_points, status = (part.strip() for part in fields.split(";"))
+            emoji = "".join(chr(int(value, 16)) for value in code_points.split())
+            shown, version, name = comment.strip().split(" ", 2)
+        except ValueError:
+            errors.append(f"{source_label}:{line_number}: malformed line")
+            continue
+        if status != "fully-qualified" or group is None:
+            continue
+        if not version.startswith("E") or shown != emoji:
+            errors.append(f"{source_label}:{line_number}: malformed comment")
+            continue
+        if any(character in SKIN_TONE_MODIFIERS for character in emoji):
+            continue
+        if emoji in seen:
+            errors.append(f"{source_label}:{line_number}: duplicate emoji")
+            continue
+        seen.add(emoji)
+        rows.append((group, version.removeprefix("E"), emoji, name))
+    if errors:
+        shown_errors = "\n".join(errors[:8])
+        raise EmojiFormatError(f"{len(errors)} format errors:\n{shown_errors}")
+    missing = set(CATALOG_GROUPS.values()) - {row[0] for row in rows}
+    if missing:
+        raise EmojiFormatError(f"{source_label}: no emoji in groups {sorted(missing)}")
+    return rows
+
+
+def format_emoji_catalog(rows: list[tuple[str, str, str, str]]) -> str:
+    return "".join("\t".join(row) + "\n" for row in rows)

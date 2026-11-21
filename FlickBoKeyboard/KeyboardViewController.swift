@@ -1,4 +1,5 @@
 import UIKit
+import os
 
 final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDelegate {
     private static let maximumCandidateCount = 30
@@ -32,6 +33,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     private var coordinatorHasFullAccess: Bool?
     private var coordinatorCharacterVariant: CharacterVariant?
     private var coordinatorShowsEmoji: Bool?
+    private var isShowingEmojiPanel = false
+    private var emojiCatalog: EmojiCatalog?
+    private let recentEmoji = RecentEmojiStore(defaults: .standard)
     /// The variant in use. Kept here so the toolbar menu still works when the
     /// App Group cannot be written; `settingsCharacterVariant` notices changes
     /// made in the app.
@@ -111,6 +115,12 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         isCandidateListExpanded = false
         engine.characterWidth = characterWidth(for: engine.mode)
 
+        if isShowingEmojiPanel {
+            buildEmojiPanel()
+            refreshUI()
+            view.setNeedsLayout()
+            return
+        }
         switch engine.mode {
         case .zhuyin: buildZhuyinKeyboard()
         case .number: buildNumberKeyboard()
@@ -282,13 +292,72 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     }
 
     private func makeEmojiButton() -> KeyboardButton {
-        // TODO: picks up custom emoji picker in the future; placeholder for now.
         let button = KeyboardButton(type: .system)
         button.setImage(keyIcon(named: "face.smiling"), for: .normal)
         button.tintColor = .label
         button.normalColor = KeyboardButton.standardKeyColor
-        button.accessibilityLabel = "表情符號"
+        button.accessibilityLabel = "繪文字"
+        button.addAction(UIAction { [weak self] _ in self?.showEmojiPanel() }, for: .touchUpInside)
         return button
+    }
+
+    private func showEmojiPanel() {
+        apply(engine.commitComposition())
+        rememberCommittedSelection()
+        coordinator?.invalidate()
+        expectedSuggestionContext = nil
+        isShowingEmojiPanel = true
+        updateKeyboardHeight()
+        rebuildKeyboard()
+    }
+
+    private func hideEmojiPanel() {
+        isShowingEmojiPanel = false
+        updateKeyboardHeight()
+        rebuildKeyboard()
+    }
+
+    private func buildEmojiPanel() {
+        if emojiCatalog == nil {
+            do {
+                emojiCatalog = try EmojiCatalog(bundle: .main)
+            } catch {
+                Logger(subsystem: "com.wirelesseye.FlickBo", category: "Emoji")
+                    .error("emoji catalog unavailable: \(String(describing: error), privacy: .public)")
+            }
+        }
+        // Recent emoji are read when the palette opens, so picks do not reorder it while open.
+        let recent = recentEmoji.emoji.map { EmojiEntry(emoji: $0, name: "") }
+        let sections = (recent.isEmpty ? [] : [EmojiSection(category: .recent, entries: recent)])
+            + (emojiCatalog?.sections ?? [])
+        let deleteButton = makeButton(for: .delete)
+        deleteButton.normalColor = .clear
+        let panel = EmojiPanelView(
+            sections: sections,
+            backTitle: emojiPanelBackTitle,
+            deleteButton: deleteButton
+        )
+        panel.onSelect = { [weak self] emoji in
+            self?.recentEmoji.record(emoji)
+            self?.handle(.symbol(emoji))
+        }
+        panel.onBack = { [weak self] in self?.hideEmojiPanel() }
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(panel)
+        NSLayoutConstraint.activate([
+            panel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 7),
+            panel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -7),
+            panel.topAnchor.constraint(equalTo: view.topAnchor, constant: 7),
+            panel.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10)
+        ])
+    }
+
+    private var emojiPanelBackTitle: String {
+        switch engine.mode {
+        case .zhuyin: "中"
+        case .number: "123"
+        case .abc: "ABC"
+        }
     }
 
     private func makeToneControl() -> FlickKeyButton {
@@ -965,7 +1034,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
 
     private func updateKeyboardHeight() {
         let compact = traitCollection.verticalSizeClass == .compact
-        heightConstraint?.constant = compact ? 220 : 280
+        // The emoji palette is taller so more rows of emoji fit.
+        let extra: CGFloat = isShowingEmojiPanel ? (compact ? 20 : 50) : 0
+        heightConstraint?.constant = (compact ? 220 : 280) + extra
     }
 
     private func refreshReturnKeyFace() {

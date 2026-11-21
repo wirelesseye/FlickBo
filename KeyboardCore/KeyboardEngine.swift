@@ -188,6 +188,17 @@ struct KeyboardEngine: Sendable {
         return update
     }
 
+    /// Commits the composition as it is shown, e.g. before opening the emoji palette.
+    mutating func commitComposition() -> KeyboardUpdate {
+        lastCommittedChunks = []
+        lastCommitWasFullySelected = false
+        clearSymbolCandidates()
+        guard !composition.isEmpty else { return .none }
+        captureCommittedChunks()
+        composition = ZhuyinComposition()
+        return KeyboardUpdate(documentEffects: [.unmarkText], invalidatesCandidates: true)
+    }
+
     /// Replaces the symbol just inserted with one of its variants.
     mutating func selectSymbolCandidate(_ text: String) -> KeyboardUpdate {
         guard let original = lastInsertedSymbol, symbolCandidates.contains(text) else { return .none }

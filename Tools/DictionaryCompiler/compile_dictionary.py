@@ -23,7 +23,15 @@ from opencc_data import (
     parse_dictionary_text as parse_opencc_dictionary_text,
     write_fzopencc,
 )
-from emoji_data import EMOJI_FORMAT_VERSION, EmojiFormatError, format_emoji_table, parse_emoji_words
+from emoji_data import (
+    CATALOG_FORMAT_VERSION,
+    EMOJI_FORMAT_VERSION,
+    EmojiFormatError,
+    format_emoji_catalog,
+    format_emoji_table,
+    parse_emoji_test,
+    parse_emoji_words,
+)
 from octagram import FZGRAM_DEFAULT_BLOCK_SIZE, FZGram, GramFormatError, read_gram, write_fzgram
 from pinyin_to_zhuyin import PinyinError, convert_syllable, strip_tone
 
@@ -48,6 +56,9 @@ EMOJI_REPOSITORY = "https://github.com/rime/rime-emoji"
 EMOJI_RAW_BASE_URL = "https://raw.githubusercontent.com/rime/rime-emoji"
 EMOJI_WORD_PATH = "opencc/emoji_word.txt"
 MAXIMUM_EMOJI_BYTES = 1024 * 1024
+UNICODE_EMOJI_BASE_URL = "https://www.unicode.org/Public/{version}/emoji"
+UNICODE_LICENSE_URL = "https://www.unicode.org/license.txt"
+UNICODE_VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 MAXIMUM_OPENCC_BYTES = 8 * 1024 * 1024
 MAXIMUM_GRAMMAR_BYTES = 64 * 1024 * 1024
 MAXIMUM_GRAMMAR_KEY_CHARACTERS = 8
@@ -2085,6 +2096,94 @@ def command_build_emoji(args: argparse.Namespace) -> int:
     return 0
 
 
+def unicode_emoji_source_urls(version: str) -> dict[str, str]:
+    """Local file name -> download URL."""
+    return {
+        "emoji-test.txt": f"{UNICODE_EMOJI_BASE_URL.format(version=version)}/emoji-test.txt",
+        "Unicode-LICENSE.txt": UNICODE_LICENSE_URL,
+    }
+
+
+def command_fetch_unicode_emoji(args: argparse.Namespace) -> int:
+    if UNICODE_VERSION_PATTERN.fullmatch(args.version) is None:
+        print("fetch-unicode-emoji: --version must look like 17.0.0", file=sys.stderr)
+        return 2
+    destination = Path(args.dest)
+    urls = unicode_emoji_source_urls(args.version)
+    files = {name: download(url) for name, url in urls.items()}
+    try:
+        rows = parse_emoji_test(files["emoji-test.txt"].decode("utf-8"), "emoji-test.txt")
+    except (EmojiFormatError, UnicodeDecodeError) as error:
+        print(f"fetch-unicode-emoji: invalid emoji-test.txt: {error}", file=sys.stderr)
+        return 1
+    manifest = {
+        "source": "Unicode emoji data (UTS #51)",
+        "version": args.version,
+        "formatVersion": CATALOG_FORMAT_VERSION,
+        "files": {
+            name: {"url": url, "sha256": sha256_bytes(files[name])} for name, url in urls.items()
+        },
+        "emojiCount": len(rows),
+        "retrievedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    destination.mkdir(parents=True, exist_ok=True)
+    for name, data in files.items():
+        (destination / name).write_bytes(data)
+    (destination / "SOURCE.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"fetch-unicode-emoji: wrote {len(files)} files to {destination} ({len(rows)} emoji)")
+    return 0
+
+
+def build_emoji_catalog(source_directory: Path, manifest_path: Path, output_path: Path) -> tuple[int, int]:
+    """Returns the emoji count and output size."""
+    try:
+        manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise CompileFailure(f"{manifest_path}: invalid JSON manifest ({error})") from error
+    if manifest.get("formatVersion") != CATALOG_FORMAT_VERSION:
+        raise CompileFailure(f"{manifest_path}: unsupported formatVersion {manifest.get('formatVersion')!r}")
+    if UNICODE_VERSION_PATTERN.fullmatch(str(manifest.get("version", ""))) is None:
+        raise CompileFailure(f"{manifest_path}: missing Unicode version")
+    expected = manifest.get("files")
+    if not isinstance(expected, dict):
+        raise CompileFailure(f"{manifest_path}: missing files")
+    for name in unicode_emoji_source_files():
+        record = expected.get(name)
+        if not isinstance(record, dict) or not SHA256_PATTERN.fullmatch(str(record.get("sha256", ""))):
+            raise CompileFailure(f"{manifest_path}: missing sha256 for {name}")
+        actual = sha256_bytes((source_directory / name).read_bytes())
+        if actual != record["sha256"]:
+            raise CompileFailure(f"{name}: sha256 {actual} does not match manifest {record['sha256']}")
+    try:
+        rows = parse_emoji_test(
+            (source_directory / "emoji-test.txt").read_text(encoding="utf-8"), "emoji-test.txt"
+        )
+    except EmojiFormatError as error:
+        raise CompileFailure(str(error)) from error
+    data = format_emoji_catalog(rows).encode("utf-8")
+    if len(data) > MAXIMUM_EMOJI_BYTES:
+        raise CompileFailure(f"emoji catalog is {len(data)} bytes, above {MAXIMUM_EMOJI_BYTES}")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(data)
+    return len(rows), len(data)
+
+
+def unicode_emoji_source_files() -> tuple[str, ...]:
+    return tuple(unicode_emoji_source_urls("0.0.0"))
+
+
+def command_build_emoji_catalog(args: argparse.Namespace) -> int:
+    try:
+        count, size = build_emoji_catalog(Path(args.source_dir), Path(args.manifest), Path(args.output))
+    except (CompileFailure, OSError) as failure:
+        print(f"build-emoji-catalog: failed: {failure}", file=sys.stderr)
+        return 1
+    print(f"build-emoji-catalog: {count} emoji, {size} bytes")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Compile the pinned Rime sources into the SQLite dictionary and FZGram grammar"
@@ -2169,6 +2268,21 @@ def main(argv: list[str] | None = None) -> int:
     build_emoji_parser.add_argument("--manifest", default="Vendor/rime-emoji/SOURCE.json")
     build_emoji_parser.add_argument("--output", default="Generated/flickbo.emoji")
     build_emoji_parser.set_defaults(func=command_build_emoji)
+
+    fetch_unicode_emoji = subparsers.add_parser(
+        "fetch-unicode-emoji", help="download a Unicode emoji-test.txt and the Unicode license"
+    )
+    fetch_unicode_emoji.add_argument("--version", required=True, help="Unicode version, e.g. 17.0.0")
+    fetch_unicode_emoji.add_argument("--dest", default="Vendor/unicode-emoji")
+    fetch_unicode_emoji.set_defaults(func=command_fetch_unicode_emoji)
+
+    build_emoji_catalog_parser = subparsers.add_parser(
+        "build-emoji-catalog", help="compile the emoji palette catalog without network access"
+    )
+    build_emoji_catalog_parser.add_argument("--source-dir", default="Vendor/unicode-emoji")
+    build_emoji_catalog_parser.add_argument("--manifest", default="Vendor/unicode-emoji/SOURCE.json")
+    build_emoji_catalog_parser.add_argument("--output", default="Generated/flickbo.emojicatalog")
+    build_emoji_catalog_parser.set_defaults(func=command_build_emoji_catalog)
 
     args = parser.parse_args(argv)
     return args.func(args)

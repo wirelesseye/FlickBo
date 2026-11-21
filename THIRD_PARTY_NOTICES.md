@@ -46,6 +46,17 @@ FlickBo（滑注音）包含由第三方資料轉換而成的中文詞典。以�
 
 使用的原始檔為 `opencc/emoji_word.txt`，內容為中文詞與對應繪文字。FlickBo 移除每行開頭重複的詞本身與重複的繪文字，刪去膚色修飾符後多餘的 U+FE0F，驗證每個值都是繪文字，再依 UTF-8 排序輸出為 `flickbo.emoji`，在候選詞之後提供繪文字；未使用 `emoji_category.txt`。轉換工具及來源 manifest 可在 FlickBo repository 的 `Tools/DictionaryCompiler/emoji_data.py` 與 `Vendor/rime-emoji/` 找到。
 
+## Unicode Emoji Data
+
+- 名稱：Unicode emoji data（UTS #51 `emoji-test.txt`）
+- 作者／維護者：Unicode, Inc.
+- 來源：<https://www.unicode.org/Public/17.0.0/emoji/emoji-test.txt>
+- 使用版本：Emoji 17.0（Unicode 17.0.0）
+- 授權：Unicode License v3
+- 授權全文：隨 App 一併提供的 `Unicode-LICENSE.txt`，或 <https://www.unicode.org/license.txt>
+
+使用的原始檔為 `emoji-test.txt`，內容為所有繪文字序列、分組與 CLDR 排序。FlickBo 只保留 fully-qualified 序列，移除膚色變體與 Component 分組，保留分組、繪文字版本與英文短名，依原順序輸出為 `flickbo.emojicatalog`，作為繪文字選單的內容；執行期隱藏系統字型尚未支援的較新版本繪文字。轉換工具及來源 manifest 可在 FlickBo repository 的 `Tools/DictionaryCompiler/emoji_data.py` 與 `Vendor/unicode-emoji/` 找到。
+
 ## OpenCC
 
 - 名稱：Open Chinese Convert（OpenCC）字典資料

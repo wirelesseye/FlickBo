@@ -16,7 +16,8 @@ Vendor/rime-essay/             鎖定版本的上游預設詞彙、授權與 man
 Vendor/rime-octagram-data/     鎖定版本的語言模型 manifest 與授權（.gram 本體需另行下載）
 Vendor/opencc/                 鎖定版本的 OpenCC 字典、測試案例、授權與 manifest
 Vendor/rime-emoji/             鎖定版本的 rime-emoji 詞對繪文字表、授權與 manifest
-Generated/                     編譯產物（SQLite 詞典、FZGram 語言模型、FZOpenCC 字形轉換、繪文字表與 report）
+Vendor/unicode-emoji/          鎖定版本的 Unicode emoji-test.txt、授權與 manifest
+Generated/                     編譯產物（SQLite 詞典、FZGram 語言模型、FZOpenCC 字形轉換、繪文字表、繪文字選單與 report）
 ```
 
 ## 架構
@@ -56,6 +57,8 @@ Generated/                     編譯產物（SQLite 詞典、FZGram 語言模�
 ### Extension 整合
 
 `FlickBoKeyboard/ChineseInputCoordinator.swift` 負責非同步協調：每次 pending tokens 改變就增加 revision 並進入 loading，但保留既有候選直到新結果抵達，背景完成後只在 revision 與 token snapshot 都相符時套用結果；詞典缺失或查詢失敗時才發布 raw 注音 fallback。`KeyboardDocumentClient` 與 `DocumentEffectApplier` 隔離 `UITextDocumentProxy`，`CandidateBarView` 以水平 `UICollectionView` 提供固定高度的候選列與展開按鈕，`ExpandedCandidateView` 以垂直 `UICollectionView` 提供展開後的候選列表，兩者都只建立可見範圍的 cell，選項依原寬度自動換行排列。
+
+繪文字選單：點按繪文字鍵時，`KeyboardViewController.showEmojiPanel()` 先以 `KeyboardEngine.commitComposition()` 提交組字中的文字（含未選注音），再以 `EmojiPanelView` 取代按鍵區。`EmojiCatalog` 讀取 `flickbo.emojicatalog`（見 [繪文字資料編譯](#繪文字資料編譯)），並依 `EmojiVersion.supported(byOSVersion:)` 隱藏系統字型尚未支援的版本（iOS 17.4 → 15.1、18.4 → 16.0、26.4 → 17.0，其餘 15.0），避免顯示空白方框。面板上方為繪文字搜尋與符號（&%、:-)）分頁，目前是停用的預留位置；中間的 `UICollectionView` 以 8 欄正方形格線依分類分段，最近使用排在最前；下方為返回鍵（中文模式顯示「中」、數字「123」、英文「ABC」）、分類列與刪除鍵，點分類會捲動到該段，捲動時分類列跟著標示目前分段。最近使用（`RecentEmojiStore`，最多 32 個）存在 Extension 自己的 `UserDefaults.standard`，不需要完整取用。選取繪文字與一般符號鍵相同，經 `KeyboardEngine` 的 `.symbol` 事件插入；面板不顯示候選列。
 
 ### 詞典資料
 
@@ -228,6 +231,23 @@ python3 Tools/DictionaryCompiler/compile_dictionary.py build-emoji
 
 - `emoji_data.py` 解析上游 `opencc/emoji_word.txt`（`詞<TAB>詞 繪文字…`），移除開頭的詞本身與重複繪文字，刪去膚色修飾符後多餘的 U+FE0F，並拒絕含文字的值；格式說明見該檔開頭。未使用 `emoji_category.txt`（分類詞對應過多繪文字）。
 - 產物約 84 KB、4,669 個詞，納入版控，並只加入 `FlickBoKeyboard` 的 bundle resources；Python 測試確認它與 vendored 來源同步。rime-emoji 的 LGPL 授權與已打包的 Rime 授權全文相同。
+
+繪文字選單的內容來自 Unicode `emoji-test.txt`，只在更新 Emoji 版本時以 `fetch-unicode-emoji` 下載：
+
+```sh
+python3 Tools/DictionaryCompiler/compile_dictionary.py fetch-unicode-emoji \
+  --version 17.0.0 \
+  --dest Vendor/unicode-emoji
+```
+
+重建 `Generated/flickbo.emojicatalog`（不需要網路）：
+
+```sh
+python3 Tools/DictionaryCompiler/compile_dictionary.py build-emoji-catalog
+```
+
+- `emoji_data.py` 的 `parse_emoji_test` 依 CLDR 順序保留 fully-qualified 序列，移除膚色變體與 Component 分組，輸出 `分組<TAB>繪文字版本<TAB>繪文字<TAB>英文短名`；遇到未知分組、格式錯誤、重複或缺少分組時編譯失敗。
+- 產物約 63 KB、1,914 個繪文字，納入版控，並只加入 `FlickBoKeyboard` 的 bundle resources；Python 測試確認它與 vendored 來源同步。授權全文 `Vendor/unicode-emoji/Unicode-LICENSE.txt` 打包進主 App 與 Extension。更新 Emoji 版本時，同時檢查 `EmojiVersion.supported(byOSVersion:)` 的 iOS 對照。
 
 ## 效能
 
