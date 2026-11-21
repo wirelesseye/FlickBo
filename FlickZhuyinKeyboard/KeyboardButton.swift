@@ -137,12 +137,22 @@ class KeyboardButton: UIButton {
 
     private func updateAppearance() {
         backgroundColor = .clear
-        tintView.backgroundColor = isHighlighted
-            ? normalColor.withAlphaComponent(0.78)
-            : normalColor
+        tintView.backgroundColor = isHighlighted ? pressedColor() : normalColor
         transform = isHighlighted
             ? CGAffineTransform(scaleX: 0.97, y: 0.97)
             : .identity
+    }
+
+    /// Light mode: blend toward black. Dark mode: blend toward white. Alpha is kept.
+    private func pressedColor() -> UIColor {
+        let isDark = traitCollection.userInterfaceStyle == .dark
+        let resolved = normalColor.resolvedColor(with: traitCollection)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        guard resolved.getRed(&r, green: &g, blue: &b, alpha: &a) else { return resolved }
+        let target: CGFloat = isDark ? 1 : 0
+        let amount: CGFloat = isDark ? 0.2 : 0.22
+        func mix(_ c: CGFloat) -> CGFloat { c + (target - c) * amount }
+        return UIColor(red: mix(r), green: mix(g), blue: mix(b), alpha: a)
     }
 }
 
