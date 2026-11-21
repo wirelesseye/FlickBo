@@ -19,60 +19,64 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Keyboard Test")
-                    .font(.headline)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("鍵盤測試")
+                        .font(.headline)
 
-                TextEditor(text: $text)
-                    .font(.body)
-                    .padding(8)
-                    .scrollContentBackground(.hidden)
-                    .background(Color(uiColor: .secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(uiColor: .separator), lineWidth: 0.5)
+                    TextEditor(text: $text)
+                        .font(.body)
+                        .frame(height: 160)
+                        .padding(8)
+                        .scrollContentBackground(.hidden)
+                        .background(Color(uiColor: .secondarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color(uiColor: .separator), lineWidth: 0.5)
+                        }
+                        .accessibilityLabel("鍵盤測試文字")
+
+                    Group {
+                        Toggle("顯示四方向符號", isOn: $showsDirectionalSymbols)
+                        Text("關閉後注音與標點按鍵只顯示中央符號。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+
+                        Toggle("選完字後自動提交", isOn: $autoCommitComposition)
+                        Text("關閉後需按「確定」提交組字內容。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+
+                        Toggle("記憶選字", isOn: $remembersSelections)
+                        Text("提交後記住新詞與選字次數。鍵盤需要開啟「允許完整取用」才能寫入；資料只保存在此裝置。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+
+                        Button("清除學習資料", role: .destructive) {
+                            showsClearConfirmation = true
+                        }
                     }
-                    .accessibilityLabel("Keyboard test text")
+                    .disabled(KeyboardSettings.appGroupIdentifier == nil)
 
-                Group {
-                    Toggle("顯示四方向符號", isOn: $showsDirectionalSymbols)
-                    Text("關閉後注音與標點按鍵只顯示中央符號。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    if KeyboardSettings.appGroupIdentifier == nil {
+                        Text("無法開啟鍵盤的共享設定。請確認安裝時保留鍵盤擴充功能，且主 App 與擴充功能的簽署都包含同一個 App Group。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let learningMessage {
+                        Text(learningMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
 
-                    Toggle("選完字後自動提交", isOn: $autoCommitComposition)
-                    Text("關閉後需按「確定」提交組字內容。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-
-                    Toggle("記憶選字", isOn: $remembersSelections)
-                    Text("提交後記住新詞與選字次數。鍵盤需要開啟「允許完整取用」才能寫入；資料只保存在此裝置。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-
-                    Button("清除學習資料", role: .destructive) {
-                        showsClearConfirmation = true
+                    NavigationLink("第三方授權") {
+                        ThirdPartyLicensesView()
                     }
                 }
-                .disabled(KeyboardSettings.appGroupIdentifier == nil)
-
-                if KeyboardSettings.appGroupIdentifier == nil {
-                    Text("無法開啟鍵盤的共享設定。請確認安裝時保留鍵盤擴充功能，且主 App 與擴充功能的簽署都包含同一個 App Group。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                if let learningMessage {
-                    Text(learningMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                NavigationLink("第三方授權") {
-                    ThirdPartyLicensesView()
-                }
+                .padding()
             }
-            .padding()
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("FlickZhuyin")
             .onAppear(perform: KeyboardSettings.logAppGroupStatus)
             .confirmationDialog("清除所有新詞與選字次數？", isPresented: $showsClearConfirmation) {
