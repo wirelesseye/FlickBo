@@ -34,8 +34,8 @@ extension UserWordKey {
     private static let toneMarks: [Character: Character] = ["ˉ": "1", "ˊ": "2", "ˇ": "3", "ˋ": "4", "˙": "5"]
 
     /// Builds a key from a typed zhuyin reading such as "ㄋㄧˇ ㄏㄠˇ". Syllables are
-    /// separated by spaces; a missing tone mark means first tone and the neutral
-    /// mark may lead or trail. Returns nil if the reading is malformed or does not
+    /// separated by spaces; a missing tone mark means first tone. The tone mark
+    /// follows the syllable, as on the keyboard; a leading neutral mark is accepted too. Returns nil if the reading is malformed or does not
     /// have one syllable per character.
     init?(text: String, reading: String) {
         var bases: [String] = []
@@ -66,7 +66,6 @@ extension UserWordKey {
         return zip(baseKey.split(separator: "\u{1f}"), toneKey).map { base, digit in
             switch digit {
             case "1": String(base)
-            case "5": "˙" + base
             default: base + String(marks[digit] ?? " ")
             }
         }.joined(separator: " ")
