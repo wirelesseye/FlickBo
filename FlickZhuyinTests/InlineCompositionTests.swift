@@ -1092,6 +1092,30 @@ final class CandidateViewLayoutTests: XCTestCase {
         XCTAssertEqual(button.accessibilityLabel, "建議：很好")
     }
 
+    func testCandidateButtonShowsBadges() {
+        let button = CandidateButton(type: .custom)
+        button.update(with: .symbol("１"), adjustsTitleToFit: false)
+        XCTAssertEqual(button.badgeText, "全")
+        XCTAssertEqual(button.accessibilityLabel, "全形：１")
+        button.update(with: .symbol("1"), adjustsTitleToFit: false)
+        XCTAssertNil(button.badgeText)
+        button.update(with: .suggestion("很好"), adjustsTitleToFit: false)
+        XCTAssertNil(button.badgeText)
+        XCTAssertEqual(button.contentEdgeInsets.right, CandidateMetrics.contentInsets.right)
+    }
+
+    func testBadgeWidensCandidate() {
+        let badgeWidth = CandidateMetrics.badgeWidth("全")
+        XCTAssertGreaterThan(badgeWidth, 0)
+        XCTAssertEqual(
+            CandidateMetrics.itemWidth(.symbol("，")),
+            CandidateMetrics.itemWidth(.suggestion("，")) + badgeWidth
+        )
+        let button = CandidateButton(type: .custom)
+        button.update(with: .symbol("，"), adjustsTitleToFit: false)
+        XCTAssertEqual(button.contentEdgeInsets.right, CandidateMetrics.contentInsets.right + badgeWidth)
+    }
+
     func testCandidateBarCountsEveryCandidateThatFits() {
         let window = makeWindow()
         let bar = CandidateBarView(frame: CGRect(x: 0, y: 0, width: 390, height: 40))

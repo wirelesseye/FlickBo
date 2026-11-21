@@ -91,11 +91,21 @@ enum CandidateItem: Equatable, Sendable {
         }
     }
 
+    /// Small corner mark: `注` for raw Zhuyin candidates, `全` for full-width symbols
+    /// that also exist in half width.
+    var badge: String? {
+        switch self {
+        case let .input(candidate): candidate.isRawFallback ? "注" : nil
+        case .suggestion: nil
+        case let .symbol(text): CharacterWidth.isFullWidthWithHalfCounterpart(text) ? "全" : nil
+        }
+    }
+
     var accessibilityLabel: String {
         switch self {
-        case let .input(candidate): candidate.text
+        case let .input(candidate): candidate.isRawFallback ? "注音：\(candidate.text)" : candidate.text
         case let .suggestion(text): "建議：\(text)"
-        case let .symbol(text): text
+        case let .symbol(text): badge == nil ? text : "全形：\(text)"
         }
     }
 }

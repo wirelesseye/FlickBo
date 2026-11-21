@@ -134,7 +134,7 @@ final class ExpandedCandidateView: UIView, UICollectionViewDataSource, UICollect
         let candidate = candidates[indexPath.item]
         candidateCell.configure(
             with: candidate,
-            adjustsTitleToFit: isOversized(candidate.text)
+            adjustsTitleToFit: isOversized(candidate)
         ) { [weak self] selected in
             self?.onSelect?(selected)
         }
@@ -147,7 +147,7 @@ final class ExpandedCandidateView: UIView, UICollectionViewDataSource, UICollect
         sizeForItemAt indexPath: IndexPath
     ) -> CGSize {
         CGSize(
-            width: min(itemWidth(for: candidates[indexPath.item].text), availableWidth),
+            width: min(itemWidth(for: candidates[indexPath.item]), availableWidth),
             height: CandidateMetrics.itemHeight
         )
     }
@@ -156,16 +156,17 @@ final class ExpandedCandidateView: UIView, UICollectionViewDataSource, UICollect
         max(collectionView.bounds.width - 2 * Self.contentInset, 1)
     }
 
-    private func isOversized(_ text: String) -> Bool {
-        itemWidth(for: text) > availableWidth
+    private func isOversized(_ item: CandidateItem) -> Bool {
+        itemWidth(for: item) > availableWidth
     }
 
-    private func itemWidth(for text: String) -> CGFloat {
-        if let cached = widthCache[text] {
+    private func itemWidth(for item: CandidateItem) -> CGFloat {
+        let key = CandidateMetrics.cacheKey(item)
+        if let cached = widthCache[key] {
             return cached
         }
-        let width = CandidateMetrics.itemWidth(text)
-        widthCache[text] = width
+        let width = CandidateMetrics.itemWidth(item)
+        widthCache[key] = width
         return width
     }
 }

@@ -4,10 +4,23 @@ enum CandidateMetrics {
     static let contentInsets = UIEdgeInsets(top: 2, left: 10, bottom: 2, right: 10)
     static let itemHeight: CGFloat = 40
 
-    static func itemWidth(_ text: String) -> CGFloat {
+    static let badgeFont = UIFont.systemFont(ofSize: 9, weight: .regular)
+    static let badgeSpacing: CGFloat = 1
+
+    /// Extra width reserved to the right of the title for a corner badge.
+    static func badgeWidth(_ badge: String?) -> CGFloat {
+        guard let badge else { return 0 }
+        return ceil((badge as NSString).size(withAttributes: [.font: badgeFont]).width) + badgeSpacing
+    }
+
+    static func itemWidth(_ item: CandidateItem) -> CGFloat {
         let font = UIFont.preferredFont(forTextStyle: .title3)
-        let width = ceil((text as NSString).size(withAttributes: [.font: font]).width)
-        return width + contentInsets.left + contentInsets.right
+        let width = ceil((item.text as NSString).size(withAttributes: [.font: font]).width)
+        return width + contentInsets.left + contentInsets.right + badgeWidth(item.badge)
+    }
+
+    static func cacheKey(_ item: CandidateItem) -> String {
+        item.badge.map { $0 + "\u{1F}" + item.text } ?? item.text
     }
 }
 
@@ -398,7 +411,7 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
         sizeForItemAt indexPath: IndexPath
     ) -> CGSize {
         CGSize(
-            width: itemWidth(for: candidates[indexPath.item].text),
+            width: itemWidth(for: candidates[indexPath.item]),
             height: max(collectionView.bounds.height, CandidateMetrics.itemHeight)
         )
     }
@@ -420,12 +433,13 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
         onToggleExpansion?()
     }
 
-    private func itemWidth(for text: String) -> CGFloat {
-        if let cached = widthCache[text] {
+    private func itemWidth(for item: CandidateItem) -> CGFloat {
+        let key = CandidateMetrics.cacheKey(item)
+        if let cached = widthCache[key] {
             return cached
         }
-        let width = CandidateMetrics.itemWidth(text)
-        widthCache[text] = width
+        let width = CandidateMetrics.itemWidth(item)
+        widthCache[key] = width
         return width
     }
 
@@ -483,8 +497,17 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
 }
 
 final class CandidateButton: UIButton {
+    private let badgeLabel = UILabel()
+
+    var badgeText: String? { badgeLabel.isHidden ? nil : badgeLabel.text }
+
     func update(with candidate: CandidateItem, adjustsTitleToFit: Bool) {
         configuration = nil
+        badgeLabel.text = candidate.badge
+        badgeLabel.isHidden = candidate.badge == nil
+        var insets = CandidateMetrics.contentInsets
+        insets.right += CandidateMetrics.badgeWidth(candidate.badge)
+        contentEdgeInsets = insets
         setTitle(candidate.text, for: .normal)
         setTitleColor(.label, for: .normal)
         titleLabel?.font = .preferredFont(forTextStyle: .title3)
@@ -506,6 +529,21 @@ final class CandidateButton: UIButton {
         layer.cornerRadius = 10
         layer.cornerCurve = .continuous
         clipsToBounds = true
+
+        // Occupies its own space right of the title; `update` widens the right inset for it.
+        badgeLabel.font = CandidateMetrics.badgeFont
+        badgeLabel.textColor = .secondaryLabel
+        badgeLabel.isHidden = true
+        badgeLabel.isAccessibilityElement = false
+        badgeLabel.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(badgeLabel)
+        NSLayoutConstraint.activate([
+            badgeLabel.topAnchor.constraint(equalTo: topAnchor, constant: 3),
+            badgeLabel.trailingAnchor.constraint(
+                equalTo: trailingAnchor,
+                constant: -CandidateMetrics.contentInsets.right
+            )
+        ])
         updateAppearance()
     }
 

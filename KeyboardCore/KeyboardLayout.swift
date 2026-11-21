@@ -48,6 +48,15 @@ enum CharacterWidth: Equatable, Sendable {
         return half != text ? half : nil
     }
 
+    /// Whether `text` is one full-width symbol that also has a half-width form, counting
+    /// the halfwidth CJK punctuation `｡｢｣､` that the width toggle itself does not produce.
+    static func isFullWidthWithHalfCounterpart(_ text: String) -> Bool {
+        let scalars = text.unicodeScalars
+        guard scalars.count == 1, let scalar = scalars.first else { return false }
+        if halfWidthScalar(for: scalar) != nil { return true }
+        return ["。", "「", "」", "、"].contains(text)
+    }
+
     private static let latin1Pairs: [(half: UInt32, full: UInt32)] = [
         (0xA2, 0xFFE0), // ¢
         (0xA3, 0xFFE1), // £

@@ -368,6 +368,23 @@ final class KeyboardEngineTests: XCTestCase {
         XCTAssertEqual(CharacterWidth.counterpart(of: "，"), ",")
     }
 
+    func testFullWidthBadgeRule() {
+        for text in ["１", "，", "（", "￥", "。", "「", "」", "、", "．"] {
+            XCTAssertTrue(CharacterWidth.isFullWidthWithHalfCounterpart(text), text)
+        }
+        for text in ["1", ",", "『", "《", "…", "①", "×", "１２"] {
+            XCTAssertFalse(CharacterWidth.isFullWidthWithHalfCounterpart(text), text)
+        }
+        XCTAssertEqual(CandidateItem.symbol("，").badge, "全")
+        XCTAssertNil(CandidateItem.symbol(",").badge)
+    }
+
+    func testRawZhuyinCandidateBadge() throws {
+        let raw = try XCTUnwrap(InputCandidate.rawFallback(tokens: [.symbol("ㄅ")], score: 0))
+        XCTAssertEqual(CandidateItem.input(raw).badge, "注")
+        XCTAssertEqual(CandidateItem.input(raw).accessibilityLabel, "注音：ㄅ")
+    }
+
     func testSymbolVariantsForPeriods() {
         XCTAssertEqual(SymbolVariants.candidates(for: "."), [".", "．", "。", "｡"])
         XCTAssertEqual(SymbolVariants.candidates(for: "。"), ["。", "．", ".", "｡"])
