@@ -99,10 +99,10 @@ enum NumberLayout {
         "4": FlickKeyMapping(["4", "+", "-", "*", "/"]),
         "5": FlickKeyMapping(["5", "=", "%", "^", "~"]),
         "6": FlickKeyMapping(["6", "$", "€", "¥", "£"]),
-        "7": FlickKeyMapping(["7", "@", "#", "&", "_"]),
+        "7": FlickKeyMapping(["7", "@", "#", "&", "○"]),
         "8": FlickKeyMapping(["8", "'", "\"", "`", "\\"]),
         "9": FlickKeyMapping(["9", ";", "|", "…", "·"]),
-        "0": FlickKeyMapping(["0", ".", ":", "、"])
+        "0": FlickKeyMapping(["0", "_", ":", "、"])
     ]
 
     static func mapping(for digit: Character, width: CharacterWidth) -> FlickKeyMapping {
@@ -176,6 +176,7 @@ enum SymbolVariants {
         "|": ["‖"],
         "…": ["⋯"],
         "·": ["‧", "•"],
+        "○": ["●", "◎", "◇", "◆", "□", "■", "△", "▲", "☆", "★"],
         ".": ["。", "｡"],
         "。": ["．", ".", "｡"],
         ",": ["、"],

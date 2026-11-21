@@ -345,9 +345,9 @@ final class KeyboardEngineTests: XCTestCase {
         XCTAssertEqual(NumberLayout.mapping(for: "1", width: .half), FlickKeyMapping(["1", "(", "[", ")", "]"]))
         XCTAssertEqual(NumberLayout.mapping(for: "8", width: .half)[.down], "\\")
         let zero = NumberLayout.mapping(for: "0", width: .half)
-        XCTAssertEqual(zero, FlickKeyMapping(["0", ".", ":", "、"]))
+        XCTAssertEqual(zero, FlickKeyMapping(["0", "_", ":", "、"]))
         XCTAssertNil(zero[.down])
-        XCTAssertEqual(NumberLayout.mapping(for: "0", width: .full), FlickKeyMapping(["０", "．", "：", "、"]))
+        XCTAssertEqual(NumberLayout.mapping(for: "0", width: .full), FlickKeyMapping(["０", "＿", "：", "、"]))
         XCTAssertEqual(
             NumberLayout.mapping(for: "6", width: .full),
             FlickKeyMapping(["６", "＄", "€", "￥", "￡"])
@@ -383,6 +383,16 @@ final class KeyboardEngineTests: XCTestCase {
         let raw = try XCTUnwrap(InputCandidate.rawFallback(tokens: [.symbol("ㄅ")], score: 0))
         XCTAssertEqual(CandidateItem.input(raw).badge, "注")
         XCTAssertEqual(CandidateItem.input(raw).accessibilityLabel, "注音：ㄅ")
+    }
+
+    func testCircleOnSevenWithShapeVariants() {
+        XCTAssertEqual(NumberLayout.mapping(for: "7", width: .half)[.down], "○")
+        XCTAssertEqual(NumberLayout.mapping(for: "7", width: .full)[.down], "○")
+        XCTAssertEqual(
+            SymbolVariants.candidates(for: "○"),
+            ["○", "●", "◎", "◇", "◆", "□", "■", "△", "▲", "☆", "★"]
+        )
+        XCTAssertNil(CandidateItem.symbol("○").badge)
     }
 
     func testSymbolVariantsForPeriods() {
