@@ -18,6 +18,8 @@ final class KeyboardViewController: UIInputViewController {
     private var documentContextBeforeComposition = ""
     private var expectedSuggestionContext: String?
     private var showsDirectionalSymbols = KeyboardSettings.showsDirectionalSymbols
+    /// Cached per-mode width so the toggle still works without App Group access.
+    private var characterWidths: [KeyboardMode: CharacterWidth] = [:]
 
     private var coordinator: ChineseInputCoordinator?
     private var coordinatorHasFullAccess: Bool?
@@ -81,6 +83,7 @@ final class KeyboardViewController: UIInputViewController {
         toneButton = nil
         punctuationButton = nil
         isCandidateListExpanded = false
+        engine.characterWidth = characterWidth(for: engine.mode)
 
         switch engine.mode {
         case .zhuyin: buildZhuyinKeyboard()
@@ -137,6 +140,8 @@ final class KeyboardViewController: UIInputViewController {
         }
         candidateBar.onOpenSettings = { [weak self] in self?.openContainingApp() }
         candidateBar.onDismissKeyboard = { [weak self] in self?.dismissKeyboard() }
+        candidateBar.characterWidth = characterWidth(for: engine.mode)
+        candidateBar.onToggleCharacterWidth = { [weak self] in self?.toggleCharacterWidth() }
         candidateBar.heightAnchor.constraint(equalToConstant: 40).isActive = true
         self.candidateBar = candidateBar
         return candidateBar
@@ -173,7 +178,7 @@ final class KeyboardViewController: UIInputViewController {
         case .number:
             for row in NumberLayout.rows {
                 let rowStack = makeRow()
-                row.forEach { rowStack.addArrangedSubview(makeButton(for: .digit($0))) }
+                row.forEach { rowStack.addArrangedSubview(makeDigitControl($0)) }
                 inputKeys.addArrangedSubview(rowStack)
             }
         case .abc:
@@ -182,7 +187,7 @@ final class KeyboardViewController: UIInputViewController {
         let toneRow = makeRow()
         toneRow.addArrangedSubview(makeToneControl())
         if mode == .number {
-            toneRow.addArrangedSubview(makeButton(for: .digit(NumberLayout.zero)))
+            toneRow.addArrangedSubview(makeDigitControl(NumberLayout.zero))
         } else {
             toneRow.addArrangedSubview(makeZhuyinControl(ZhuyinLayout.nasalFinals))
         }
@@ -272,16 +277,40 @@ final class KeyboardViewController: UIInputViewController {
         return button
     }
 
+    private func makeDigitControl(_ digit: Character) -> FlickKeyButton {
+        let mapping = NumberLayout.mapping(for: digit, width: engine.characterWidth)
+        let button = makeFlickButton(mapping: mapping) { [weak self] direction in
+            guard let self else { return }
+            if direction == .center {
+                self.handle(.digit(digit))
+            } else if let symbol = mapping[direction] {
+                self.handle(.symbol(symbol))
+            }
+        }
+        if showsDirectionalSymbols {
+            button.directionalFaceStyle = .digit
+            button.directionalFace = mapping
+        } else {
+            button.titleLabel?.font = .systemFont(ofSize: 24, weight: .regular)
+        }
+        button.accessibilityLabel = mappingSymbols(mapping)
+        return button
+    }
+
+    private var currentPunctuation: FlickKeyMapping {
+        ZhuyinLayout.punctuation(width: engine.characterWidth)
+    }
+
     private func makePunctuationControl() -> FlickKeyButton {
-        let mapping = ZhuyinLayout.punctuation
+        let mapping = currentPunctuation
         let button = makeFlickButton(mapping: mapping) { [weak self] direction in
             guard let self else { return }
             if self.engine.hasActiveTokens {
                 guard direction == .center else { return }
                 self.handle(.tone(.neutral))
             } else {
-                guard let symbol = mapping[direction] else { return }
-                self.insertPunctuation(symbol)
+                guard let symbol = self.currentPunctuation[direction] else { return }
+                self.handle(.symbol(symbol))
             }
         }
         applyPunctuationFace(button, mapping: mapping)
@@ -313,12 +342,30 @@ final class KeyboardViewController: UIInputViewController {
         FlickDirection.allCases.compactMap { mapping[$0] }.joined()
     }
 
-    private func insertPunctuation(_ symbol: String) {
-        if engine.hasMarkedText {
-            apply(engine.update(for: .return))
+    private func characterWidth(for mode: KeyboardMode) -> CharacterWidth {
+        if let width = characterWidths[mode] { return width }
+        let width: CharacterWidth = KeyboardSettings.usesFullWidth(inMode: settingsName(for: mode))
+            ? .full
+            : .half
+        characterWidths[mode] = width
+        return width
+    }
+
+    private func settingsName(for mode: KeyboardMode) -> String {
+        switch mode {
+        case .zhuyin: "zhuyin"
+        case .number: "number"
+        case .abc: "abc"
         }
-        apply(KeyboardUpdate(documentEffects: [.insertText(symbol)]))
-        refreshUI()
+    }
+
+    private func toggleCharacterWidth() {
+        let mode = engine.mode
+        let width = characterWidth(for: mode).toggled
+        characterWidths[mode] = width
+        KeyboardSettings.setUsesFullWidth(width == .full, inMode: settingsName(for: mode))
+        engine.clearSymbolCandidates()
+        rebuildKeyboard()
     }
 
     private func pinnedVerticalStack(spacing: CGFloat) -> UIStackView {
@@ -480,6 +527,15 @@ final class KeyboardViewController: UIInputViewController {
             guard !update.documentEffects.isEmpty else { return }
             apply(update)
             requestPostCommitSuggestions(for: text)
+        case let .symbol(text):
+            // Only replace when the inserted symbol is still right before the cursor.
+            if let original = engine.lastInsertedSymbol,
+               let before = textDocumentProxy.documentContextBeforeInput,
+               !before.hasSuffix(original) {
+                engine.clearSymbolCandidates()
+            } else {
+                apply(engine.selectSymbolCandidate(text))
+            }
         }
         refreshUI()
     }
@@ -561,6 +617,13 @@ final class KeyboardViewController: UIInputViewController {
 
     private func handleHostDocumentChange() {
         guard documentEffectDepth == 0 else { return }
+        if let symbol = engine.lastInsertedSymbol {
+            // Host callbacks can arrive after our own insertion; keep variants while
+            // the inserted symbol still sits right before the cursor.
+            if textDocumentProxy.documentContextBeforeInput?.hasSuffix(symbol) ?? true { return }
+            engine.clearSymbolCandidates()
+            refreshCandidates()
+        }
         if engine.composition.isEmpty {
             if let expectedSuggestionContext,
                GrammarContext.tail(of: textDocumentProxy.documentContextBeforeInput)
@@ -579,8 +642,14 @@ final class KeyboardViewController: UIInputViewController {
         refreshUI()
     }
 
+    private var candidateItems: [CandidateItem] {
+        let symbols = engine.symbolCandidates
+        guard symbols.isEmpty else { return symbols.map(CandidateItem.symbol) }
+        return coordinator?.items ?? []
+    }
+
     private func refreshCandidates() {
-        let candidates = coordinator?.items ?? []
+        let candidates = candidateItems
         candidateBar?.update(with: candidates)
         refreshExpandedCandidates()
         if candidates.isEmpty {
@@ -590,7 +659,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private func refreshExpandedCandidates() {
         guard isCandidateListExpanded else { return }
-        let candidates = coordinator?.items ?? []
+        let candidates = candidateItems
         let visibleCount = candidateBar?.visibleCandidateCount ?? 0
         let start = min(visibleCount, candidates.count)
         expandedCandidatesView?.update(with: Array(candidates.dropFirst(start)))
@@ -638,12 +707,13 @@ final class KeyboardViewController: UIInputViewController {
                 )
                 punctuationButton?.accessibilityLabel = "輕聲"
             } else {
-                punctuationButton?.mapping = ZhuyinLayout.punctuation
+                let punctuation = currentPunctuation
+                punctuationButton?.mapping = punctuation
                 if let punctuationButton {
-                    applyPunctuationFace(punctuationButton, mapping: ZhuyinLayout.punctuation)
+                    applyPunctuationFace(punctuationButton, mapping: punctuation)
                 }
                 punctuationButton?.showsPreview = true
-                punctuationButton?.accessibilityLabel = mappingSymbols(ZhuyinLayout.punctuation)
+                punctuationButton?.accessibilityLabel = mappingSymbols(punctuation)
             }
             toneButton?.mapping = hasPending
                 ? ZhuyinLayout.tones
@@ -721,7 +791,7 @@ final class KeyboardViewController: UIInputViewController {
                         ),
                         for: .normal
                     )
-                case .nextKeyboard, .zhuyin:
+                case .nextKeyboard, .zhuyin, .symbol:
                     break
                 }
             }
@@ -817,6 +887,7 @@ final class KeyboardViewController: UIInputViewController {
         switch key {
         case let .letter(character), let .zhuyin(character), let .digit(character):
             String(character)
+        case let .symbol(text): text
         case let .tone(tone): tone == .first ? "第一聲" : tone.symbol
         case .shift: "Shift"
         case .delete: "Delete"

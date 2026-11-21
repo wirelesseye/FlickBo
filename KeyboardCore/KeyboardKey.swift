@@ -4,6 +4,8 @@ enum KeyboardKey: Equatable, Sendable {
     case letter(Character)
     case zhuyin(Character)
     case digit(Character)
+    /// A digit-key flick or punctuation symbol, already in its final width.
+    case symbol(String)
     case tone(MandarinTone)
     case shift
     case delete

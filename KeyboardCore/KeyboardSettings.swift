@@ -67,6 +67,20 @@ enum KeyboardSettings {
         set { sharedDefaults?.set(newValue, forKey: remembersSelectionsKey) }
     }
 
+    /// Per-mode full-width preference; mode names are `zhuyin`, `number` and `abc`.
+    /// Zhuyin defaults to full-width punctuation, the other modes to half-width.
+    static func usesFullWidth(inMode mode: String) -> Bool {
+        sharedDefaults?.object(forKey: fullWidthKey(mode)) as? Bool ?? (mode == "zhuyin")
+    }
+
+    static func setUsesFullWidth(_ value: Bool, inMode mode: String) {
+        sharedDefaults?.set(value, forKey: fullWidthKey(mode))
+    }
+
+    private static func fullWidthKey(_ mode: String) -> String {
+        "usesFullWidth." + mode
+    }
+
     static var userLearningURL: URL? {
         sharedContainer?.url.appendingPathComponent(UserLearningStore.fileName)
     }

@@ -73,11 +73,13 @@ struct InputCandidate: Equatable, Identifiable, Sendable {
 enum CandidateItem: Equatable, Sendable {
     case input(InputCandidate)
     case suggestion(String)
+    /// A width or related variant of the digit or symbol just typed.
+    case symbol(String)
 
     var text: String {
         switch self {
         case let .input(candidate): candidate.text
-        case let .suggestion(text): text
+        case let .suggestion(text), let .symbol(text): text
         }
     }
 
@@ -85,6 +87,7 @@ enum CandidateItem: Equatable, Sendable {
         switch self {
         case let .input(candidate): candidate.id.accessibilityIdentifier
         case let .suggestion(text): "suggestion-\(text)"
+        case let .symbol(text): "symbol-\(text)"
         }
     }
 
@@ -92,6 +95,7 @@ enum CandidateItem: Equatable, Sendable {
         switch self {
         case let .input(candidate): candidate.text
         case let .suggestion(text): "建議：\(text)"
+        case let .symbol(text): text
         }
     }
 }

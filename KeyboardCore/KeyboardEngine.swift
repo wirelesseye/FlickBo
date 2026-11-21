@@ -7,6 +7,11 @@ struct KeyboardEngine: Sendable {
     private(set) var lastCommittedChunks: [SelectedChunk] = []
     private(set) var lastCommitWasFullySelected = false
     private var lastShiftTap: TimeInterval?
+    /// Width used for digits typed in number mode and for spaces.
+    var characterWidth: CharacterWidth = .half
+    /// Variants of the symbol just inserted, shown until the next input.
+    private(set) var symbolCandidates: [String] = []
+    private(set) var lastInsertedSymbol: String?
 
     init(mode: KeyboardMode = .zhuyin) {
         self.mode = mode
@@ -38,6 +43,7 @@ struct KeyboardEngine: Sendable {
     ) -> KeyboardUpdate {
         lastCommittedChunks = []
         lastCommitWasFullySelected = false
+        clearSymbolCandidates()
         switch key {
         case let .letter(character):
             guard mode == .abc else { return .none }
@@ -55,7 +61,10 @@ struct KeyboardEngine: Sendable {
             return activeRunUpdate()
         case let .digit(character):
             guard mode == .number else { return .none }
-            return KeyboardUpdate(documentEffects: [.insertText(String(character))])
+            return insertSymbol(characterWidth.apply(to: String(character)))
+        case let .symbol(text):
+            guard mode != .abc, !text.isEmpty else { return .none }
+            return insertSymbol(text)
         case let .tone(tone):
             guard mode == .zhuyin, composition.applyTone(tone) else { return .none }
             return activeRunUpdate()
@@ -81,7 +90,7 @@ struct KeyboardEngine: Sendable {
             return cursorUpdate(by: 1)
         case .space:
             guard mode == .zhuyin, !composition.isEmpty else {
-                return KeyboardUpdate(documentEffects: [.insertText(" ")])
+                return KeyboardUpdate(documentEffects: [.insertText(characterWidth.space)])
             }
             return .none
         case .return:
@@ -146,6 +155,7 @@ struct KeyboardEngine: Sendable {
     mutating func selectCandidate(_ candidate: InputCandidate, autoCommit: Bool = false) -> KeyboardUpdate {
         lastCommittedChunks = []
         lastCommitWasFullySelected = false
+        clearSymbolCandidates()
         let tokens = composition.activeTokens
         guard mode == .zhuyin, !tokens.isEmpty else { return .none }
         composition.replaceActiveTokens(
@@ -175,6 +185,22 @@ struct KeyboardEngine: Sendable {
         return update
     }
 
+    /// Replaces the symbol just inserted with one of its variants.
+    mutating func selectSymbolCandidate(_ text: String) -> KeyboardUpdate {
+        guard let original = lastInsertedSymbol, symbolCandidates.contains(text) else { return .none }
+        clearSymbolCandidates()
+        guard text != original else { return KeyboardUpdate(invalidatesCandidates: true) }
+        return KeyboardUpdate(
+            documentEffects: [.deleteBackward, .insertText(text)],
+            invalidatesCandidates: true
+        )
+    }
+
+    mutating func clearSymbolCandidates() {
+        symbolCandidates = []
+        lastInsertedSymbol = nil
+    }
+
     func selectSuggestion(_ text: String) -> KeyboardUpdate {
         guard mode == .zhuyin, composition.isEmpty, !text.isEmpty else { return .none }
         return KeyboardUpdate(documentEffects: [.insertText(text)], invalidatesCandidates: true)
@@ -186,6 +212,19 @@ struct KeyboardEngine: Sendable {
         guard !composition.isEmpty else { return .none }
         composition = ZhuyinComposition()
         return KeyboardUpdate(invalidatesCandidates: true)
+    }
+
+    private mutating func insertSymbol(_ text: String) -> KeyboardUpdate {
+        var effects: [DocumentEffect] = []
+        if mode == .zhuyin, !composition.isEmpty {
+            effects.append(.insertText(composition.markedText))
+            captureCommittedChunks()
+            composition = ZhuyinComposition()
+        }
+        effects.append(.insertText(text))
+        lastInsertedSymbol = text
+        symbolCandidates = SymbolVariants.candidates(for: text)
+        return KeyboardUpdate(documentEffects: effects, invalidatesCandidates: true)
     }
 
     private mutating func captureCommittedChunks() {

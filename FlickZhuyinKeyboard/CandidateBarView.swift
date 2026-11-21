@@ -59,6 +59,10 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
     var onVisibleCandidatesChanged: ((Int) -> Void)?
     var onOpenSettings: (() -> Void)?
     var onDismissKeyboard: (() -> Void)?
+    var onToggleCharacterWidth: (() -> Void)?
+    var characterWidth: CharacterWidth = .half {
+        didSet { updateWidthButton() }
+    }
 
     private(set) var isExpanded = false
     private(set) var visibleCandidateCount = 0
@@ -85,6 +89,7 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
     private let toolbarView = UIStackView()
     private let settingsButton = ToolbarButton(type: .custom)
     private let dismissButton = ToolbarButton(type: .custom)
+    private let widthButton = ToolbarButton(type: .custom)
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -191,6 +196,17 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
         )
         dismissButton.widthAnchor.constraint(equalToConstant: 44).isActive = true
 
+        widthButton.accessibilityIdentifier = "toolbar-character-width"
+        widthButton.addAction(
+            UIAction { [weak self] _ in
+                KeyHaptics.keyDown()
+                self?.onToggleCharacterWidth?()
+            },
+            for: .touchUpInside
+        )
+        widthButton.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        updateWidthButton()
+
         let toolbarSpacer = UIView()
         toolbarSpacer.setContentHuggingPriority(.defaultLow - 1, for: .horizontal)
 
@@ -198,6 +214,7 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
         toolbarView.alignment = .fill
         toolbarView.spacing = 4
         toolbarView.addArrangedSubview(settingsButton)
+        toolbarView.addArrangedSubview(widthButton)
         toolbarView.addArrangedSubview(toolbarSpacer)
         toolbarView.addArrangedSubview(dismissButton)
         toolbarView.translatesAutoresizingMaskIntoConstraints = false
@@ -384,6 +401,18 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
             width: itemWidth(for: candidates[indexPath.item].text),
             height: max(collectionView.bounds.height, CandidateMetrics.itemHeight)
         )
+    }
+
+    private func updateWidthButton() {
+        let isFull = characterWidth == .full
+        widthButton.setImage(
+            UIImage(
+                systemName: isFull ? "circle" : "moon",
+                withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+            ),
+            for: .normal
+        )
+        widthButton.accessibilityLabel = isFull ? "全形，點按切換為半形" : "半形，點按切換為全形"
     }
 
     private func toggleExpansion() {

@@ -228,13 +228,118 @@ final class KeyboardEngineTests: XCTestCase {
         var engine = KeyboardEngine(mode: .number)
         XCTAssertEqual(
             engine.update(for: .digit("5")),
-            KeyboardUpdate(documentEffects: [.insertText("5")])
+            KeyboardUpdate(documentEffects: [.insertText("5")], invalidatesCandidates: true)
         )
         XCTAssertEqual(
             engine.update(for: .digit("0")),
-            KeyboardUpdate(documentEffects: [.insertText("0")])
+            KeyboardUpdate(documentEffects: [.insertText("0")], invalidatesCandidates: true)
         )
         XCTAssertTrue(engine.composition.isEmpty)
+    }
+
+    func testFullWidthDigitsAndVariants() {
+        var engine = KeyboardEngine(mode: .number)
+        engine.characterWidth = .full
+        XCTAssertEqual(engine.update(for: .digit("1")).documentEffects, [.insertText("１")])
+        XCTAssertEqual(engine.symbolCandidates, ["１", "1", "①", "¹", "₁", "Ⅰ"])
+    }
+
+    func testHalfWidthDigitOffersFullWidthVariant() {
+        var engine = KeyboardEngine(mode: .number)
+        _ = engine.update(for: .digit("1"))
+        XCTAssertEqual(Array(engine.symbolCandidates.prefix(2)), ["1", "１"])
+    }
+
+    func testSelectingSymbolVariantReplacesInsertedSymbol() {
+        var engine = KeyboardEngine(mode: .number)
+        _ = engine.update(for: .symbol("「"))
+        XCTAssertEqual(engine.symbolCandidates, ["「", "『", "﹁", "｢"])
+        XCTAssertEqual(
+            engine.selectSymbolCandidate("『"),
+            KeyboardUpdate(documentEffects: [.deleteBackward, .insertText("『")], invalidatesCandidates: true)
+        )
+        XCTAssertTrue(engine.symbolCandidates.isEmpty)
+        XCTAssertEqual(engine.selectSymbolCandidate("『"), .none)
+    }
+
+    func testSelectingOriginalSymbolKeepsDocument() {
+        var engine = KeyboardEngine(mode: .number)
+        _ = engine.update(for: .symbol("("))
+        XCTAssertEqual(engine.selectSymbolCandidate("("), KeyboardUpdate(invalidatesCandidates: true))
+    }
+
+    func testNextInputClearsSymbolVariants() {
+        var engine = KeyboardEngine(mode: .number)
+        _ = engine.update(for: .symbol("("))
+        XCTAssertFalse(engine.symbolCandidates.isEmpty)
+        _ = engine.update(for: .delete)
+        XCTAssertTrue(engine.symbolCandidates.isEmpty)
+        XCTAssertNil(engine.lastInsertedSymbol)
+    }
+
+    func testPunctuationSymbolCommitsComposition() {
+        var engine = KeyboardEngine()
+        _ = engine.update(for: .zhuyin("ㄅ"))
+        _ = engine.update(for: .return)
+        _ = engine.update(for: .zhuyin("ㄅ"))
+        let update = engine.update(for: .symbol("，"))
+        XCTAssertEqual(update.documentEffects, [.insertText("ㄅ"), .insertText("，")])
+        XCTAssertTrue(engine.composition.isEmpty)
+        XCTAssertEqual(engine.symbolCandidates, ["，", ",", "、"])
+    }
+
+    func testSpaceFollowsCharacterWidth() {
+        for mode in [KeyboardMode.zhuyin, .number, .abc] {
+            var engine = KeyboardEngine(mode: mode)
+            XCTAssertEqual(engine.update(for: .space).documentEffects, [.insertText(" ")])
+            engine.characterWidth = .full
+            XCTAssertEqual(engine.update(for: .space).documentEffects, [.insertText("\u{3000}")])
+        }
+    }
+
+    func testSpaceDuringCompositionIgnoresWidth() {
+        var engine = KeyboardEngine()
+        engine.characterWidth = .full
+        _ = engine.update(for: .zhuyin("ㄅ"))
+        XCTAssertEqual(engine.update(for: .space), .none)
+    }
+
+    func testSymbolIsIgnoredInABCMode() {
+        var engine = KeyboardEngine(mode: .abc)
+        XCTAssertEqual(engine.update(for: .symbol("(")), .none)
+    }
+
+    func testNumberFlickLayout() {
+        XCTAssertEqual(NumberLayout.mapping(for: "1", width: .half), FlickKeyMapping(["1", "(", "[", ")", "]"]))
+        XCTAssertEqual(NumberLayout.mapping(for: "8", width: .half)[.down], "\\")
+        let zero = NumberLayout.mapping(for: "0", width: .half)
+        XCTAssertEqual(zero, FlickKeyMapping(["0", ".", ":", "、"]))
+        XCTAssertNil(zero[.down])
+        XCTAssertEqual(NumberLayout.mapping(for: "0", width: .full), FlickKeyMapping(["０", "．", "：", "、"]))
+        XCTAssertEqual(
+            NumberLayout.mapping(for: "6", width: .full),
+            FlickKeyMapping(["６", "＄", "€", "￥", "￡"])
+        )
+        XCTAssertEqual(NumberLayout.mapping(for: "2", width: .full), NumberLayout.mapping(for: "2", width: .half).replacingCenter("２"))
+    }
+
+    func testPunctuationFollowsWidth() {
+        XCTAssertEqual(ZhuyinLayout.punctuation(width: .full), FlickKeyMapping(["，", "。", "？", "！"]))
+        XCTAssertEqual(ZhuyinLayout.punctuation(width: .half), FlickKeyMapping([",", ".", "?", "!"]))
+    }
+
+    func testCharacterWidthConversion() {
+        XCTAssertEqual(CharacterWidth.full.apply(to: "a1(~"), "ａ１（～")
+        XCTAssertEqual(CharacterWidth.half.apply(to: "ａ１（～￥"), "a1(~¥")
+        XCTAssertEqual(CharacterWidth.full.apply(to: "「…"), "「…")
+        XCTAssertNil(CharacterWidth.counterpart(of: "『"))
+        XCTAssertEqual(CharacterWidth.counterpart(of: "，"), ",")
+    }
+
+    func testSymbolVariantsForPeriods() {
+        XCTAssertEqual(SymbolVariants.candidates(for: "."), [".", "．", "。", "｡"])
+        XCTAssertEqual(SymbolVariants.candidates(for: "。"), ["。", "．", ".", "｡"])
+        XCTAssertEqual(SymbolVariants.candidates(for: "＊"), ["＊", "*", "×", "·"])
     }
 
     func testDigitIsIgnoredOutsideNumberMode() {
@@ -285,5 +390,11 @@ final class KeyboardEngineTests: XCTestCase {
             guard case let .letter(character) = key else { return nil }
             return character
         })
+    }
+}
+
+private extension FlickKeyMapping {
+    func replacingCenter(_ center: String) -> FlickKeyMapping {
+        FlickKeyMapping([center] + FlickDirection.allCases.dropFirst().compactMap { self[$0] })
     }
 }

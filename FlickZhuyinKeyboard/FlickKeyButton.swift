@@ -6,6 +6,7 @@ struct FlickFaceStyle: Equatable {
 
     static let punctuation = FlickFaceStyle(centerFontScale: 0.43, directionFontScale: 0.28)
     static let zhuyin = FlickFaceStyle(centerFontScale: 0.43, directionFontScale: 0.26)
+    static let digit = FlickFaceStyle(centerFontScale: 0.46, directionFontScale: 0.26)
     static let tone = FlickFaceStyle(centerFontScale: 0.56, directionFontScale: 0.42)
 }
 
