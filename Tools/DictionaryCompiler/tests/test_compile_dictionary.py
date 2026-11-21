@@ -522,6 +522,50 @@ class ReadingPropagationTests(CompilerTestCase):
         self.assertEqual(report["propagatedReadings"]["addedReadings"], 0)
 
 
+class ReadingPriorTests(CompilerTestCase):
+    def weights(self, output, text):
+        return self.query(
+            output,
+            "SELECT base_key, tone_key, pronunciation_weight FROM pronunciation "
+            f"WHERE text = '{text}' ORDER BY base_key, tone_key",
+        )
+
+    def test_word_usage_refines_terra_character_percentages(self):
+        body = (
+            "長\tchang2\t90%\n長\tzhang3\t10%\n成長\tcheng2 zhang3\n長度\tchang2 du4\n"
+            "成\tcheng2\n度\tdu4\n大\tda4\n了\tle5\n了\tliao3\n"
+        )
+        output, report = self.build(body, essay_body="成長\t300\n長度\t100\n長\t100\n長大\t50\n了\t80\n")
+        # Words: zhang3 300, chang2 100. Standalone 長 (100) keeps Terra's 90/10.
+        # Usage only raises readings: zhang3 0.62, chang2 stays at 0.9.
+        zhang_usage = (300 + 100 * 0.1) / 500
+        zhang = zhang_usage / (zhang_usage + 0.9)
+        chang = 0.9 / (zhang_usage + 0.9)
+        weights = self.weights(output, "長")
+        self.assertEqual([row[:2] for row in weights], [("ㄓㄤ", "3"), ("ㄔㄤ", "2")])
+        self.assertAlmostEqual(weights[0][2], zhang)
+        self.assertAlmostEqual(weights[1][2], chang)
+        composed = {row[0]: row[2] for row in self.weights(output, "長大")}
+        self.assertAlmostEqual(composed[SEPARATOR.join(["ㄓㄤ", "ㄉㄚ"])], zhang)
+        self.assertAlmostEqual(composed[SEPARATOR.join(["ㄔㄤ", "ㄉㄚ"])], chang)
+        # Characters without Terra percentages still carry no prior.
+        self.assertEqual([row[2] for row in self.weights(output, "了")], [None, None])
+        self.assertEqual(report["readingPriors"]["adjustedCharacters"], 1)
+        self.assertEqual(report["readingPriors"]["examples"][0]["text"], "長")
+
+    def test_neutral_tone_and_sandhi_word_readings_do_not_demote_the_citation_reading(self):
+        body = (
+            "子\tzi3\t97%\n子\tzi5\t3%\n桌子\tzhuo1 zi5\n桌\tzhuo1\n"
+            "一\tyi1\t98%\n一\tyi2\t1%\n一\tyi4\t1%\n一個\tyi2 ge4\n個\tge4\n"
+        )
+        output, report = self.build(body, essay_body="桌子\t500\n子\t10\n一個\t900\n一\t10\n")
+        zi = {row[1]: row[2] for row in self.weights(output, "子")}
+        self.assertAlmostEqual(zi["3"], 0.97)
+        yi = {row[1]: row[2] for row in self.weights(output, "一")}
+        self.assertAlmostEqual(yi["1"], 0.98)
+        self.assertEqual(report["readingPriors"]["adjustedCharacters"], 1)
+
+
 class NormalizationTests(unittest.TestCase):
     def test_boundaries(self):
         self.assertEqual(normalize_frequency(0, 100), 0.0)
@@ -658,13 +702,13 @@ class CompilationTests(CompilerTestCase):
         self.assertEqual(metadata["essay_source_sha256"], report["sources"]["essay"]["sha256"])
         self.assertEqual(metadata["entry_count"], str(report["compiledEntries"]))
         self.assertEqual(metadata["dictionary_version"], "1.0")
-        self.assertEqual(metadata["compiler_version"], "6")
+        self.assertEqual(metadata["compiler_version"], "7")
         self.assertEqual(metadata["essay_entry_count"], "1")
         self.assertEqual(metadata["essay_annotated_entry_count"], "1")
         self.assertEqual(metadata["essay_frequency_max"], "100")
         self.assertEqual(metadata["weight_normalization"], "log1p(frequency)/log1p(max_frequency)")
         self.assertEqual(report["schemaVersion"], 4)
-        self.assertEqual(report["compilerVersion"], "6")
+        self.assertEqual(report["compilerVersion"], "7")
         inventory = [row[0] for row in self.query(output, "SELECT base FROM syllable_inventory ORDER BY base")]
         self.assertEqual(inventory, sorted({"ㄓㄨㄥ", "ㄨㄣ"}))
         self.assertEqual(self.query(output, "PRAGMA user_version")[0][0], 4)
@@ -828,7 +872,7 @@ class ProductionDictionaryTests(CompilerTestCase):
         essay_manifest = json.loads(PRODUCTION_ESSAY_MANIFEST.read_text(encoding="utf-8"))
         metadata = dict(self.query(PRODUCTION_DATABASE, "SELECT key, value FROM metadata"))
         self.assertEqual(metadata["schema_version"], "4")
-        self.assertEqual(metadata["compiler_version"], "6")
+        self.assertEqual(metadata["compiler_version"], "7")
         self.assertEqual(metadata["terra_source_repository"], terra_manifest["repository"])
         self.assertEqual(metadata["terra_source_commit"], terra_manifest["commit"])
         self.assertEqual(metadata["terra_source_sha256"], terra_manifest["sha256"])
@@ -880,15 +924,20 @@ class ProductionDictionaryTests(CompilerTestCase):
         self.assertIsNotNone(wu[1])
         self.assertIsNotNone(yu[1])
         self.assertAlmostEqual(wu[1], yu[1])
+        # Terra says 0% ㄨ; rare words such as 於菟 give it some Essay usage,
+        # but it stays at the single-character floor.
         self.assertEqual(wu[2], 0.05)
-        self.assertEqual(yu[2], 1.0)
+        self.assertGreater(yu[2], 0.95)
+        self.assertLess(yu[2], 1.0)
         self.assertEqual(wu[3], "terra+essay")
         self.assertEqual(yu[3], "terra+essay")
         guanyu = self.query(
             PRODUCTION_DATABASE,
             "SELECT pronunciation_weight FROM pronunciation WHERE text = '關於'",
         )
-        self.assertEqual(guanyu, [(1.0,)])
+        # Composition skips the 0% reading, so 關於 has one reading with 於's ㄩ prior.
+        self.assertEqual(len(guanyu), 1)
+        self.assertAlmostEqual(guanyu[0][0], yu[2])
 
     def test_composed_readings_never_reference_zero_weight_alternatives(self):
         parsed_terra = parse_dictionary(PRODUCTION_TERRA_SOURCE)

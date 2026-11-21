@@ -16,6 +16,227 @@
   "essayTruncatedEntries": 821,
   "generatedPronunciations": 727602,
   "excludedZeroWeightReadings": 36458,
+  "readingPriors": {
+    "adjustedCharacters": 750,
+    "examples": [
+      {
+        "text": "長",
+        "readings": [
+          {
+            "baseKey": "ㄔㄤ",
+            "tone": 2,
+            "terra": 0.9,
+            "estimated": 0.6941
+          },
+          {
+            "baseKey": "ㄓㄤ",
+            "tone": 3,
+            "terra": 0.1,
+            "estimated": 0.3059
+          }
+        ]
+      },
+      {
+        "text": "爲",
+        "readings": [
+          {
+            "baseKey": "ㄨㄟ",
+            "tone": 2,
+            "terra": 0.5,
+            "estimated": 0.4839
+          },
+          {
+            "baseKey": "ㄨㄟ",
+            "tone": 4,
+            "terra": 0.5,
+            "estimated": 0.5161
+          }
+        ]
+      },
+      {
+        "text": "了",
+        "readings": [
+          {
+            "baseKey": "ㄌㄜ",
+            "tone": 5,
+            "terra": 0.95,
+            "estimated": 0.8768
+          },
+          {
+            "baseKey": "ㄌㄧㄠ",
+            "tone": 3,
+            "terra": 0.05,
+            "estimated": 0.1232
+          }
+        ]
+      },
+      {
+        "text": "的",
+        "readings": [
+          {
+            "baseKey": "ㄉㄜ",
+            "tone": 5,
+            "terra": 0.98,
+            "estimated": 0.9405
+          },
+          {
+            "baseKey": "ㄉㄧ",
+            "tone": 2,
+            "terra": 0.01,
+            "estimated": 0.0166
+          },
+          {
+            "baseKey": "ㄉㄧ",
+            "tone": 4,
+            "terra": 0.01,
+            "estimated": 0.043
+          }
+        ]
+      },
+      {
+        "text": "子",
+        "readings": [
+          {
+            "baseKey": "ㄗ",
+            "tone": 3,
+            "terra": 0.97,
+            "estimated": 0.9708
+          },
+          {
+            "baseKey": "ㄗ",
+            "tone": 5,
+            "terra": 0.03,
+            "estimated": 0.0292
+          }
+        ]
+      },
+      {
+        "text": "都",
+        "readings": [
+          {
+            "baseKey": "ㄉㄡ",
+            "tone": 1,
+            "terra": 0.9,
+            "estimated": 0.7157
+          },
+          {
+            "baseKey": "ㄉㄨ",
+            "tone": 1,
+            "terra": 0.1,
+            "estimated": 0.2843
+          }
+        ]
+      },
+      {
+        "text": "中",
+        "readings": [
+          {
+            "baseKey": "ㄓㄨㄥ",
+            "tone": 1,
+            "terra": 0.97,
+            "estimated": 0.7474
+          },
+          {
+            "baseKey": "ㄓㄨㄥ",
+            "tone": 4,
+            "terra": 0.03,
+            "estimated": 0.2526
+          }
+        ]
+      },
+      {
+        "text": "好",
+        "readings": [
+          {
+            "baseKey": "ㄏㄠ",
+            "tone": 3,
+            "terra": 0.95,
+            "estimated": 0.8398
+          },
+          {
+            "baseKey": "ㄏㄠ",
+            "tone": 4,
+            "terra": 0.05,
+            "estimated": 0.1602
+          }
+        ]
+      },
+      {
+        "text": "要",
+        "readings": [
+          {
+            "baseKey": "ㄧㄠ",
+            "tone": 4,
+            "terra": 0.95,
+            "estimated": 0.8473
+          },
+          {
+            "baseKey": "ㄧㄠ",
+            "tone": 1,
+            "terra": 0.05,
+            "estimated": 0.1527
+          }
+        ]
+      },
+      {
+        "text": "重",
+        "readings": [
+          {
+            "baseKey": "ㄓㄨㄥ",
+            "tone": 4,
+            "terra": 0.9,
+            "estimated": 0.7269
+          },
+          {
+            "baseKey": "ㄔㄨㄥ",
+            "tone": 2,
+            "terra": 0.1,
+            "estimated": 0.2731
+          }
+        ]
+      },
+      {
+        "text": "樂",
+        "readings": [
+          {
+            "baseKey": "ㄌㄜ",
+            "tone": 4,
+            "terra": 0.8,
+            "estimated": 0.6189
+          },
+          {
+            "baseKey": "ㄩㄝ",
+            "tone": 4,
+            "terra": 0.2,
+            "estimated": 0.3811
+          }
+        ]
+      },
+      {
+        "text": "識",
+        "readings": [
+          {
+            "baseKey": "ㄕ",
+            "tone": 2,
+            "terra": 0.95,
+            "estimated": 0.4982
+          },
+          {
+            "baseKey": "ㄓ",
+            "tone": 4,
+            "terra": 0.05,
+            "estimated": 0.0262
+          },
+          {
+            "baseKey": "ㄕ",
+            "tone": 4,
+            "terra": 0.0,
+            "estimated": 0.4756
+          }
+        ]
+      }
+    ]
+  },
   "propagatedReadings": {
     "sourceWords": 2008,
     "addedReadings": 20239,
@@ -73,14 +294,14 @@
   },
   "maxSyllableCount": 16,
   "weightedEntries": 747835,
-  "pronunciationWeightedEntries": 435122,
+  "pronunciationWeightedEntries": 439476,
   "essayWeightedEntries": 747835,
   "normalization": {
     "formula": "log1p(frequency)/log1p(max_frequency)",
     "maximumFrequency": 4822928
   },
   "database": {
-    "bytes": 171544576,
+    "bytes": 171585536,
     "limitBytes": 268435456
   },
   "errors": [],
@@ -205,6 +426,6 @@
       "frequencyMax": 4822928
     }
   },
-  "compilerVersion": "6",
+  "compilerVersion": "7",
   "schemaVersion": 4
 }

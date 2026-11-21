@@ -46,7 +46,7 @@ MAXIMUM_OPENCC_BYTES = 8 * 1024 * 1024
 MAXIMUM_GRAMMAR_BYTES = 64 * 1024 * 1024
 MAXIMUM_GRAMMAR_KEY_CHARACTERS = 8
 SENTENCE_BOUNDARY = "$"
-COMPILER_VERSION = "6"
+COMPILER_VERSION = "7"
 SCHEMA_VERSION = 4
 REQUIRED_HEADER_KEYS = ("name", "version")
 REQUIRED_METADATA_KEYS = (
@@ -80,6 +80,11 @@ MAXIMUM_PROPAGATED_WORD_LENGTH = 4
 # per-word limit that bounds character-by-character composition, up to this.
 MAXIMUM_PRONUNCIATIONS_WITH_PROPAGATION = 2 * MAXIMUM_PRONUNCIATIONS_PER_WORD
 MINIMUM_SINGLE_CHARACTER_PRONUNCIATION_WEIGHT = 0.05
+READING_PRIOR_EXAMPLE_CHARACTERS = "長爲了的一子都中好要重樂識"
+# Characters whose tone changes by rule inside words (一個 is yí gè), so the
+# readings Terra gives them in words say nothing about the one users type.
+TONE_SANDHI_CHARACTERS = frozenset("一不")
+NEUTRAL_TONE = 5
 MAXIMUM_DATABASE_BYTES = 256 * 1024 * 1024
 MAXIMUM_STORED_INTEGER = 9_223_372_036_854_775_807
 REPORT_EXAMPLE_LIMIT = 8
@@ -461,12 +466,132 @@ def compile_terra_entries(
     return rows, errors, conflicts, duplicates, sorted(distinct_pinyin)
 
 
-def terra_pronunciation_weight(text: str, source_weight: float | None) -> float | None:
+ReadingPriorKey = tuple[str, str, int]
+
+
+@dataclass(frozen=True)
+class ReadingPriors:
+    weights: dict[ReadingPriorKey, float]
+    adjusted_characters: int
+    examples: tuple[dict, ...]
+
+
+def terra_pronunciation_weight(
+    text: str,
+    source_weight: float | None,
+    base_syllables: tuple[str, ...] = (),
+    tones: tuple[int, ...] = (),
+    priors: dict[ReadingPriorKey, float] | None = None,
+) -> float | None:
+    if len(text) == 1 and priors and base_syllables:
+        prior = priors.get((text, base_syllables[0], tones[0]))
+        if prior is not None:
+            source_weight = prior
     if source_weight is None:
         return None
     if len(text) == 1:
         return max(source_weight, MINIMUM_SINGLE_CHARACTER_PRONUNCIATION_WEIGHT)
     return source_weight
+
+
+def normalized_terra_priors(readings: tuple[TerraReading, ...]) -> list[float]:
+    """Terra's percentages for one character as a distribution.
+
+    Unweighted readings share what the weighted ones leave; the result is
+    renormalized because Terra's percentages do not always sum to one.
+    """
+    known = sum(reading.source_weight for reading in readings if reading.source_weight is not None)
+    unweighted = sum(1 for reading in readings if reading.source_weight is None)
+    remainder = max(0.0, 1.0 - known) / unweighted if unweighted else 0.0
+    priors = [reading.source_weight if reading.source_weight is not None else remainder for reading in readings]
+    total = sum(priors)
+    if total <= 0.0:
+        return [1.0 / len(readings)] * len(readings)
+    return [prior / total for prior in priors]
+
+
+def estimate_reading_priors(index: TerraIndex, essay_entries: list[EssayEntry]) -> ReadingPriors:
+    """Raise readings that Essay usage shows to be more common than Terra says.
+
+    Terra's per-character percentages are rough editorial guesses (長 is 90%
+    cháng, 10% zhǎng). Essay counts how often each word is used, and Terra
+    gives the reading of every listed word, so the frequency of 成長, 長大 and
+    校長 is evidence for zhǎng. A word listed with several readings splits its
+    frequency equally among them. The character's own Essay frequency counts
+    standalone uses, whose readings Essay cannot tell apart; it keeps Terra's
+    percentages:
+
+        usage(r) = (words(r) + standalone * terra(r)) / (words + standalone)
+        prior(r) = max(terra(r), usage(r)), renormalized
+
+    Word readings are not always the reading typed for the character alone:
+    neutral tones (桌子), tone sandhi (一個) and mainland word readings (知識
+    as zhīshi) would otherwise demote the citation reading. So usage only
+    raises readings, never lowers Terra's, and neutral-tone word evidence
+    counts only for characters whose main Terra reading is neutral (了, 的).
+    Only characters with several readings and at least one Terra percentage
+    are adjusted, so readings without percentages still carry no prior.
+    """
+    frequencies = {entry.text: entry.frequency for entry in essay_entries}
+    evidence: dict[ReadingPriorKey, float] = {}
+    for text, readings in index.words.items():
+        frequency = frequencies.get(text, 0)
+        if len(text) < 2 or frequency <= 0:
+            continue
+        distinct = {(reading.base_syllables, reading.tones) for reading in readings}
+        share = frequency / len(distinct)
+        for bases, tones in distinct:
+            for character, base, tone in zip(text, bases, tones):
+                key = (character, base, tone)
+                evidence[key] = evidence.get(key, 0.0) + share
+
+    weights: dict[ReadingPriorKey, float] = {}
+    examples: list[dict] = []
+    adjusted = 0
+    for character, readings in index.characters.items():
+        readings = deduplicate_terra_readings(readings)
+        if (
+            len(readings) < 2
+            or character in TONE_SANDHI_CHARACTERS
+            or all(reading.source_weight is None for reading in readings)
+        ):
+            continue
+        keys = [(character, reading.base_syllables[0], reading.tones[0]) for reading in readings]
+        terra = normalized_terra_priors(readings)
+        main_tone = keys[max(range(len(keys)), key=lambda position: terra[position])][2]
+        word_evidence = [
+            evidence.get(key, 0.0) if key[2] != NEUTRAL_TONE or main_tone == NEUTRAL_TONE else 0.0
+            for key in keys
+        ]
+        standalone = float(frequencies.get(character, 0))
+        total = sum(word_evidence) + standalone
+        if total <= 0.0:
+            continue
+        raised = [
+            max(prior, (words + standalone * prior) / total)
+            for prior, words in zip(terra, word_evidence)
+        ]
+        normalizer = sum(raised)
+        adjusted += 1
+        for key, value in zip(keys, raised):
+            weights[key] = value / normalizer
+        if character in READING_PRIOR_EXAMPLE_CHARACTERS:
+            examples.append(
+                {
+                    "text": character,
+                    "readings": [
+                        {
+                            "baseKey": key[1],
+                            "tone": key[2],
+                            "terra": round(prior, 4),
+                            "estimated": round(weights[key], 4),
+                        }
+                        for key, prior in zip(keys, terra)
+                    ],
+                }
+            )
+    examples.sort(key=lambda example: READING_PRIOR_EXAMPLE_CHARACTERS.index(example["text"]))
+    return ReadingPriors(weights, adjusted, tuple(examples))
 
 
 def terra_reading_sort_key(reading: TerraReading) -> tuple:
@@ -479,7 +604,10 @@ def terra_reading_sort_key(reading: TerraReading) -> tuple:
     )
 
 
-def build_terra_index(rows: list[CompiledEntry]) -> TerraIndex:
+def build_terra_index(
+    rows: list[CompiledEntry],
+    priors: dict[ReadingPriorKey, float] | None = None,
+) -> TerraIndex:
     words: dict[str, list[TerraReading]] = {}
     characters: dict[str, list[TerraReading]] = {}
     for row in rows:
@@ -487,7 +615,7 @@ def build_terra_index(rows: list[CompiledEntry]) -> TerraIndex:
             row.base_syllables,
             row.tones,
             row.source_weight,
-            terra_pronunciation_weight(row.text, row.source_weight),
+            terra_pronunciation_weight(row.text, row.source_weight, row.base_syllables, row.tones, priors),
             row.source_line,
         )
         words.setdefault(row.text, []).append(reading)
@@ -691,6 +819,7 @@ def merge_rows(
     terra_rows: list[CompiledEntry],
     annotated_entries: tuple[AnnotatedEssayEntry, ...],
     maximum_frequency: int,
+    priors: dict[ReadingPriorKey, float] | None = None,
 ) -> tuple[list[MergedEntry], int, int]:
     rows: dict[tuple[str, str, str], MergedEntry] = {}
     for row in terra_rows:
@@ -699,7 +828,7 @@ def merge_rows(
             row.base_syllables,
             row.tones,
             None,
-            terra_pronunciation_weight(row.text, row.source_weight),
+            terra_pronunciation_weight(row.text, row.source_weight, row.base_syllables, row.tones, priors),
             SOURCE_KIND_TERRA,
             row.source_line,
             (row.source_line,),
@@ -1152,10 +1281,11 @@ def build_database(
 
     merged_essay, essay_duplicates = merge_essay_entries(parsed_essay.entries)
     maximum_frequency = max((entry.frequency for entry in merged_essay), default=0)
-    index = build_terra_index(terra_rows)
+    reading_priors = estimate_reading_priors(build_terra_index(terra_rows), merged_essay)
+    index = build_terra_index(terra_rows, reading_priors.weights)
     annotation = annotate_essay(merged_essay, index)
     rows, merged_count, duplicate_pronunciations = merge_rows(
-        terra_rows, annotation.entries, maximum_frequency
+        terra_rows, annotation.entries, maximum_frequency, reading_priors.weights
     )
     propagation = propagate_word_readings(rows, index)
     rows = propagation.rows
@@ -1200,6 +1330,10 @@ def build_database(
         "essayTruncatedEntries": annotation.truncated_entries,
         "generatedPronunciations": annotation.generated_pronunciations,
         "excludedZeroWeightReadings": annotation.excluded_zero_weight_readings,
+        "readingPriors": {
+            "adjustedCharacters": reading_priors.adjusted_characters,
+            "examples": list(reading_priors.examples),
+        },
         "propagatedReadings": {
             "sourceWords": propagation.source_words,
             "addedReadings": propagation.added_readings,

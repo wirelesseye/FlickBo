@@ -95,10 +95,11 @@ private func assertSegmentsCover(_ candidate: DecodedCandidate, tokenCount: Int,
 
 final class DecoderScorerTests: XCTestCase {
     private let scorer = BaselineDecoderScorer()
+    private let configuration = DecoderConfiguration()
 
     func testWeightedWordCostIsLinearInLogFrequencyWeight() throws {
         let word = testWord(0, 1, text: "中", syllables: [SyllableConstraint(base: "ㄓ", tone: .first)], weight: 0.25, parserCost: 0.5)
-        XCTAssertEqual(try scorer.cost(for: word), 0.5 + 5 * 0.75 + 0.35, accuracy: 1e-12)
+        XCTAssertEqual(try scorer.cost(for: word), 0.5 + configuration.frequencyCostScale * 0.75 + configuration.wordBoundaryCost, accuracy: 1e-12)
     }
 
     func testFrequencyGapOutweighsAnEvenReadingSplit() throws {
@@ -121,14 +122,14 @@ final class DecoderScorerTests: XCTestCase {
             ],
             weight: nil
         )
-        XCTAssertEqual(try scorer.cost(for: word), 8.0 + 0.35, accuracy: 1e-12)
+        XCTAssertEqual(try scorer.cost(for: word), 8.0 + configuration.wordBoundaryCost, accuracy: 1e-12)
     }
 
     func testZeroWeightUsesFloorAndStaysFinite() throws {
         let word = testWord(0, 1, text: "中", syllables: [SyllableConstraint(base: "ㄓ", tone: .first)], weight: 0)
         let cost = try scorer.cost(for: word)
         XCTAssertTrue(cost.isFinite)
-        XCTAssertEqual(cost, 5 + 0.35, accuracy: 1e-9)
+        XCTAssertEqual(cost, configuration.frequencyCostScale + configuration.wordBoundaryCost, accuracy: 1e-9)
     }
 
     func testPronunciationWeightAddsPriorCost() throws {
@@ -142,7 +143,7 @@ final class DecoderScorerTests: XCTestCase {
         )
         XCTAssertEqual(
             try scorer.cost(for: word),
-            0.35 + 5 * 0.75 + (-log(0.05)),
+            configuration.wordBoundaryCost + configuration.frequencyCostScale * 0.75 + configuration.readingCostScale * -log(0.05),
             accuracy: 1e-12
         )
     }
@@ -156,7 +157,7 @@ final class DecoderScorerTests: XCTestCase {
             weight: nil,
             pronunciationWeight: 0.5
         )
-        XCTAssertEqual(try scorer.cost(for: word), 0.35 + (-log(0.5)), accuracy: 1e-12)
+        XCTAssertEqual(try scorer.cost(for: word), configuration.wordBoundaryCost + configuration.readingCostScale * -log(0.5), accuracy: 1e-12)
     }
 
     func testZeroPronunciationWeightUsesFloor() throws {
@@ -168,7 +169,7 @@ final class DecoderScorerTests: XCTestCase {
             weight: nil,
             pronunciationWeight: 0
         )
-        XCTAssertEqual(try scorer.cost(for: word), 0.35 + (-log(1e-9)), accuracy: 1e-9)
+        XCTAssertEqual(try scorer.cost(for: word), configuration.wordBoundaryCost + configuration.readingCostScale * -log(1e-9), accuracy: 1e-9)
     }
 
     func testIllegalPronunciationWeightsThrow() {
@@ -209,7 +210,7 @@ final class DecoderScorerTests: XCTestCase {
             weight: nil,
             parserCost: 1.5
         )
-        XCTAssertEqual(try scorer.cost(for: word), 3.0 + 8.0 + 0.35, accuracy: 1e-12)
+        XCTAssertEqual(try scorer.cost(for: word), 3.0 + 8.0 + configuration.wordBoundaryCost, accuracy: 1e-12)
     }
 
     func testRawCompletenessPenalties() throws {
@@ -457,7 +458,8 @@ final class DecoderTests: XCTestCase {
             SyllableConstraint(base: "ㄓ", tone: .first),
             SyllableConstraint(base: "ㄨ", tone: .first),
         ])
-        XCTAssertEqual(merged[0].score, 5 * 0.1 + 0.35, accuracy: 1e-12)
+        let configuration = DecoderConfiguration()
+        XCTAssertEqual(merged[0].score, configuration.frequencyCostScale * 0.1 + configuration.wordBoundaryCost, accuracy: 1e-12)
         XCTAssertEqual(merged[0].segments.count, 1)
     }
 

@@ -32,7 +32,7 @@ final class ProductionDictionaryIntegrationTests: XCTestCase {
         let report = try readJSON(reportURL)
 
         XCTAssertEqual(metadata["schema_version"], "4")
-        XCTAssertEqual(metadata["compiler_version"], "6")
+        XCTAssertEqual(metadata["compiler_version"], "7")
         XCTAssertEqual(metadata["terra_source_repository"], terraManifest["repository"] as? String)
         XCTAssertEqual(metadata["terra_source_commit"], terraManifest["commit"] as? String)
         XCTAssertEqual(metadata["terra_source_sha256"], terraManifest["sha256"] as? String)
@@ -113,7 +113,8 @@ final class ProductionDictionaryIntegrationTests: XCTestCase {
         let store = try SQLiteLexiconStore(url: databaseURL)
         let readings = try store.exactMatches(for: [SyllableConstraint(base: "ㄩ")])
         let 於 = try XCTUnwrap(readings.first { $0.text == "於" })
-        XCTAssertEqual(於.pronunciationWeight, 1.0)
+        // Rare words such as 於菟 give the 0% ㄨ some Essay usage.
+        XCTAssertGreaterThan(try XCTUnwrap(於.pronunciationWeight), 0.95)
     }
 
     func testPatternQueriesReturnFullPronunciations() throws {

@@ -12,15 +12,26 @@ struct DecoderConfiguration: Equatable, Sendable {
     var weightedEntryFloor = 1e-9
     /// Frequency cost of a weighted word is `frequencyCostScale * (1 - w)`,
     /// where `w = log1p(f) / log1p(max)` is the stored Essay weight. That is
-    /// `frequencyCostScale / log1p(max)` times the word's negative log
-    /// relative frequency, so frequency ratios keep their meaning: 爲 (about
-    /// 12 times as frequent as 未) is no longer outweighed by its 50% reading
-    /// prior. The old `-log(w)` compressed a 12x frequency gap into 0.22.
-    /// 5 (about a third of the true log-probability scale) scored best on
-    /// `ranking-gold.tsv` with and without the grammar.
-    var frequencyCostScale = 5.0
+    /// `frequencyCostScale / log1p(max)` (about 0.52 at 8) times the word's
+    /// negative log relative frequency, so frequency ratios keep their
+    /// meaning: 爲 (about 12 times as frequent as 未) is not outweighed by its
+    /// 50% reading prior. The old `-log(w)` compressed a 12x frequency gap
+    /// into 0.22.
+    var frequencyCostScale = 8.0
+    /// Reading cost of a word with a pronunciation prior is
+    /// `readingCostScale * -log(prior)`. Reading priors are estimates (Terra's
+    /// percentages refined by Essay usage, multiplied per character for
+    /// composed words), so they count for less than frequency: at full weight
+    /// 長 (40% ㄓㄤˇ) and the composed 長大 lost to 漲 and 漲大 despite being
+    /// more frequent. 8 and 0.35 sit inside the region (frequency 6–8,
+    /// reading 0.3–0.4) that scored best on `ranking-gold.tsv` with and
+    /// without the grammar.
+    var readingCostScale = 0.35
     var unweightedWordCost = 8.0
-    var wordBoundaryCost = 0.35
+    /// Paid once per word, so it keeps the search from splitting input into
+    /// frequent short words. It scales with `frequencyCostScale` (0.35 at the
+    /// old 5): at 0.35 with 8, 可以 + 看 undercut the word 可以看.
+    var wordBoundaryCost = 0.56
     var completeRawCost = 12.0
     var incompleteRawCost = 16.0
     var fallbackRawCost = 20.0
@@ -55,6 +66,7 @@ struct DecoderConfiguration: Equatable, Sendable {
             ("incompleteRawCost", incompleteRawCost),
             ("fallbackRawCost", fallbackRawCost),
             ("grammarWeight", grammarWeight),
+            ("readingCostScale", readingCostScale),
         ]
         for (name, value) in costs {
             guard value.isFinite, value >= 0 else {

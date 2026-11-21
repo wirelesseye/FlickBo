@@ -32,7 +32,7 @@ struct BaselineDecoderScorer: DecoderScorer, Sendable {
             guard prior.isFinite, prior >= 0, prior <= 1 else {
                 throw DecoderError.scoringFailed("pronunciation weight \(prior) is outside 0...1")
             }
-            cost += -log(max(prior, configuration.weightedEntryFloor))
+            cost += configuration.readingCostScale * -log(max(prior, configuration.weightedEntryFloor))
         }
         return cost
     }

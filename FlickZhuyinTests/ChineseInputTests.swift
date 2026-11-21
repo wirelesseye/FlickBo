@@ -178,7 +178,8 @@ private struct RankingFixtureStore: LexiconStore {
         let reading = [CanonicalSyllable(base: "ㄓㄨㄥ", tone: .first)]
         return [
             LexiconMatch(text: "中", pronunciation: reading, sourceWeight: 0.5),
-            LexiconMatch(text: "終", pronunciation: reading, sourceWeight: 0.2),
+            // A frequency gap (8 × 0.2 = 1.6) that eight selections (boost 2.25) overcome.
+            LexiconMatch(text: "終", pronunciation: reading, sourceWeight: 0.3),
         ]
     }
 

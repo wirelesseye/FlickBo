@@ -332,6 +332,9 @@ final class GrammarDecoderTests: XCTestCase {
         )
         let grammar = StubGrammar(["爲|麼": 0])
         var configuration = DecoderConfiguration()
+        // At full reading weight the prior outweighs 爲's frequency lead.
+        configuration.frequencyCostScale = 5
+        configuration.readingCostScale = 1
         configuration.beamWidth = 2
         configuration.frequentWordReserve = 0
         let pruned = try Decoder(configuration: configuration, grammar: grammar)
