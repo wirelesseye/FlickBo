@@ -247,7 +247,10 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         }
         if promoted.isEmpty {
             result.append(contentsOf: exactCharacters)
-            return withEmoji(localized(result), tokenCount: tokens.count)
+            return withNumbers(
+                withEmoji(localized(result), tokenCount: tokens.count),
+                tokenCount: tokens.count
+            )
         }
         let ranked = (result.filter { !$0.isRawFallback } + promoted).sorted { lhs, rhs in
             lhs.score == rhs.score ? lhs.text < rhs.text : lhs.score < rhs.score
@@ -255,7 +258,34 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         let promotedTexts = Set(promoted.map(\.text))
         result = ranked + result.filter(\.isRawFallback)
         result.append(contentsOf: exactCharacters.filter { !promotedTexts.contains($0.text) })
-        return withEmoji(localized(result), tokenCount: tokens.count)
+        return withNumbers(
+            withEmoji(localized(result), tokenCount: tokens.count),
+            tokenCount: tokens.count
+        )
+    }
+
+    /// Inserts half-width and full-width numeric candidates right after any
+    /// full-coverage Chinese number candidate, similar to `withEmoji`.
+    private func withNumbers(_ candidates: [InputCandidate], tokenCount: Int) -> [InputCandidate] {
+        var seen = Set(candidates.map(\.text))
+        var result: [InputCandidate] = []
+        result.reserveCapacity(candidates.count)
+        for candidate in candidates {
+            result.append(candidate)
+            guard !candidate.isRawFallback,
+                  !candidate.isEmoji,
+                  candidate.id.tokenRange == 0..<tokenCount,
+                  let number = ChineseNumberConverter.arabicNumber(for: candidate.text)
+            else { continue }
+            if seen.insert(number).inserted {
+                result.append(.number(number, tokenCount: tokenCount, isFullWidth: false))
+            }
+            let fullWidth = CharacterWidth.full.apply(to: number)
+            if seen.insert(fullWidth).inserted {
+                result.append(.number(fullWidth, tokenCount: tokenCount, isFullWidth: true))
+            }
+        }
+        return result
     }
 
     /// Word candidates within this many leading positions get their emoji.

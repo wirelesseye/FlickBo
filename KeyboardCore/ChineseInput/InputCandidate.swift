@@ -26,6 +26,9 @@ struct InputCandidate: Equatable, Identifiable, Sendable {
     /// An emoji offered for the word candidate before it; inserted like a
     /// word but never recorded by user learning.
     let isEmoji: Bool
+    /// Whether this candidate is a full-width form that also has a half-width
+    /// counterpart (e.g. full-width numbers like `１３`), shown with a `全` badge.
+    let isFullWidth: Bool
 
     init(
         id: CandidateID,
@@ -34,7 +37,8 @@ struct InputCandidate: Equatable, Identifiable, Sendable {
         pronunciation: [SyllableConstraint],
         score: Double,
         isRawFallback: Bool,
-        isEmoji: Bool = false
+        isEmoji: Bool = false,
+        isFullWidth: Bool = false
     ) {
         self.id = id
         self.text = text
@@ -43,6 +47,7 @@ struct InputCandidate: Equatable, Identifiable, Sendable {
         self.score = score
         self.isRawFallback = isRawFallback
         self.isEmoji = isEmoji
+        self.isFullWidth = isFullWidth
     }
 
     /// `emoji` offered for `word`, covering the same input.
@@ -54,6 +59,18 @@ struct InputCandidate: Equatable, Identifiable, Sendable {
             score: word.score,
             isRawFallback: false,
             isEmoji: true
+        )
+    }
+
+    /// Numeric candidate covering all `tokenCount` active tokens, not recorded by user learning.
+    static func number(_ text: String, tokenCount: Int, isFullWidth: Bool = false) -> InputCandidate {
+        InputCandidate(
+            id: CandidateID(text: text, pronunciation: [], tokenRange: 0..<tokenCount),
+            text: text,
+            pronunciation: [],
+            score: 0,
+            isRawFallback: false,
+            isFullWidth: isFullWidth
         )
     }
 
@@ -116,20 +133,28 @@ enum CandidateItem: Equatable, Sendable {
     }
 
     /// Small corner mark: `注` for raw Zhuyin candidates, `全` for full-width symbols
-    /// that also exist in half width.
+    /// or full-width numeric candidates that also exist in half width.
     var badge: String? {
         switch self {
-        case let .input(candidate): candidate.isRawFallback ? "注" : nil
-        case .suggestion: nil
-        case let .symbol(text): CharacterWidth.isFullWidthWithHalfCounterpart(text) ? "全" : nil
+        case let .input(candidate):
+            if candidate.isRawFallback { return "注" }
+            return candidate.isFullWidth ? "全" : nil
+        case .suggestion:
+            return nil
+        case let .symbol(text):
+            return CharacterWidth.isFullWidthWithHalfCounterpart(text) ? "全" : nil
         }
     }
 
     var accessibilityLabel: String {
         switch self {
-        case let .input(candidate): candidate.isRawFallback ? "注音：\(candidate.text)" : candidate.text
-        case let .suggestion(text): "建議：\(text)"
-        case let .symbol(text): badge == nil ? text : "全形：\(text)"
+        case let .input(candidate):
+            if candidate.isRawFallback { return "注音：\(candidate.text)" }
+            return candidate.isFullWidth ? "全形：\(candidate.text)" : candidate.text
+        case let .suggestion(text):
+            return "建議：\(text)"
+        case let .symbol(text):
+            return badge == nil ? text : "全形：\(text)"
         }
     }
 }
