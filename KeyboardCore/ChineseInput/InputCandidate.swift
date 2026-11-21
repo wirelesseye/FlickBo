@@ -23,6 +23,9 @@ struct InputCandidate: Equatable, Identifiable, Sendable {
     let pronunciation: [SyllableConstraint]
     let score: Double
     let isRawFallback: Bool
+    /// An emoji offered for the word candidate before it; inserted like a
+    /// word but never recorded by user learning.
+    let isEmoji: Bool
 
     init(
         id: CandidateID,
@@ -30,7 +33,8 @@ struct InputCandidate: Equatable, Identifiable, Sendable {
         canonicalText: String? = nil,
         pronunciation: [SyllableConstraint],
         score: Double,
-        isRawFallback: Bool
+        isRawFallback: Bool,
+        isEmoji: Bool = false
     ) {
         self.id = id
         self.text = text
@@ -38,6 +42,19 @@ struct InputCandidate: Equatable, Identifiable, Sendable {
         self.pronunciation = pronunciation
         self.score = score
         self.isRawFallback = isRawFallback
+        self.isEmoji = isEmoji
+    }
+
+    /// `emoji` offered for `word`, covering the same input.
+    static func emoji(_ emoji: String, for word: InputCandidate) -> InputCandidate {
+        InputCandidate(
+            id: CandidateID(text: emoji, pronunciation: word.pronunciation, tokenRange: word.id.tokenRange),
+            text: emoji,
+            pronunciation: word.pronunciation,
+            score: word.score,
+            isRawFallback: false,
+            isEmoji: true
+        )
     }
 
     init(decoded: DecodedCandidate) {
@@ -91,7 +108,8 @@ enum CandidateItem: Equatable, Sendable {
 
     var accessibilityIdentifier: String {
         switch self {
-        case let .input(candidate): candidate.id.accessibilityIdentifier
+        case let .input(candidate):
+            candidate.isEmoji ? "emoji-\(candidate.text)" : candidate.id.accessibilityIdentifier
         case let .suggestion(text): "suggestion-\(text)"
         case let .symbol(text): "symbol-\(text)"
         }

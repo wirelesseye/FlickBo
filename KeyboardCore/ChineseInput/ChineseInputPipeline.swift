@@ -27,6 +27,7 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
     private let bundledStore: any LexiconStore
     private let userLearningStore: UserLearningStore?
     private let textConverter: CandidateTextConverter
+    private let emojiTable: EmojiTable?
     private let queue = DispatchQueue(
         label: "com.wirelesseye.FlickBo.ChineseInputPipeline",
         qos: .userInitiated
@@ -40,7 +41,9 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         decoder: Decoder = Decoder(),
         userLearningStore: UserLearningStore? = nil,
         characterVariant: CharacterVariant = .traditional,
-        openCCResourceExtension: String = "opencc"
+        openCCResourceExtension: String = "opencc",
+        includesEmoji: Bool = false,
+        emojiResourceExtension: String = "emoji"
     ) throws {
         let store = try SQLiteLexiconStore(
             bundle: bundle,
@@ -82,11 +85,26 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
                     .error("character conversion unavailable: \(String(describing: error), privacy: .public)")
             }
         }
+        var emojiTable: EmojiTable?
+        if includesEmoji {
+            do {
+                emojiTable = try EmojiTable(
+                    bundle: bundle,
+                    resourceName: resourceName,
+                    resourceExtension: emojiResourceExtension
+                )
+            } catch {
+                // Word candidates are unaffected; only the emoji are missing.
+                Logger(subsystem: "com.wirelesseye.FlickBo", category: "ChineseInput")
+                    .error("emoji unavailable: \(String(describing: error), privacy: .public)")
+            }
+        }
         try self.init(
             store: store,
             decoder: decoder,
             userLearningStore: userLearningStore,
-            textConverter: textConverter
+            textConverter: textConverter,
+            emojiTable: emojiTable
         )
     }
 
@@ -94,11 +112,13 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         store: any LexiconStore,
         decoder: Decoder = Decoder(),
         userLearningStore: UserLearningStore? = nil,
-        textConverter: CandidateTextConverter = .identity
+        textConverter: CandidateTextConverter = .identity,
+        emojiTable: EmojiTable? = nil
     ) throws {
         bundledStore = store
         self.userLearningStore = userLearningStore
         self.textConverter = textConverter
+        self.emojiTable = emojiTable
         let combined = CombinedLexiconStore(bundled: store, learned: userLearningStore)
         self.store = combined
         parser = try SyllableParser(store: combined)
@@ -125,6 +145,10 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         chunks: [SelectedChunk],
         fullySelected: Bool
     ) throws -> [(key: UserWordKey, isLearned: Bool)] {
+        // An emoji is not a word: skip it, and do not learn a phrase containing it.
+        let fullySelected = fullySelected && !chunks.contains(where: \.isEmoji)
+        let chunks = chunks.filter { !$0.isEmoji }
+        guard !chunks.isEmpty else { return [] }
         var entries: [(key: UserWordKey, isLearned: Bool)] = chunks.compactMap { chunk in
             UserWordKey(text: chunk.canonicalText, pronunciation: chunk.pronunciation).map { ($0, false) }
         }
@@ -223,7 +247,7 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         }
         if promoted.isEmpty {
             result.append(contentsOf: exactCharacters)
-            return localized(result)
+            return withEmoji(localized(result), tokenCount: tokens.count)
         }
         let ranked = (result.filter { !$0.isRawFallback } + promoted).sorted { lhs, rhs in
             lhs.score == rhs.score ? lhs.text < rhs.text : lhs.score < rhs.score
@@ -231,7 +255,37 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         let promotedTexts = Set(promoted.map(\.text))
         result = ranked + result.filter(\.isRawFallback)
         result.append(contentsOf: exactCharacters.filter { !promotedTexts.contains($0.text) })
-        return localized(result)
+        return withEmoji(localized(result), tokenCount: tokens.count)
+    }
+
+    /// Word candidates within this many leading positions get their emoji.
+    static let emojiSourceCandidateLimit = 3
+
+    /// Inserts the emoji of the leading word candidates right after each word,
+    /// so the first candidate stays a word. Only candidates covering the whole
+    /// input qualify, since selecting one replaces all of it.
+    private func withEmoji(_ candidates: [InputCandidate], tokenCount: Int) -> [InputCandidate] {
+        guard let emojiTable else { return candidates }
+        var seen = Set<String>()
+        var result: [InputCandidate] = []
+        result.reserveCapacity(candidates.count)
+        for (index, candidate) in candidates.enumerated() {
+            result.append(candidate)
+            guard index < Self.emojiSourceCandidateLimit,
+                  !candidate.isRawFallback,
+                  candidate.id.tokenRange == 0..<tokenCount
+            else { continue }
+            // Upstream keys are mostly Standard Traditional; the shown form
+            // catches the few written in Taiwan forms.
+            var emoji = emojiTable.emoji(for: candidate.canonicalText)
+            if emoji.isEmpty, candidate.text != candidate.canonicalText {
+                emoji = emojiTable.emoji(for: candidate.text)
+            }
+            for text in emoji where seen.insert(text).inserted {
+                result.append(.emoji(text, for: candidate))
+            }
+        }
+        return result
     }
 
     /// Converts ranked canonical candidates into the chosen character variant.

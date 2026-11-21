@@ -79,7 +79,11 @@
 		A10000000000000000000058 /* CharacterVariant.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002C /* CharacterVariant.swift */; };
 		A10000000000000000000059 /* CharacterVariant.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002C /* CharacterVariant.swift */; };
 		A1000000000000000000005A /* flickbo.opencc in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002D /* flickbo.opencc */; };
+		A1000000000000000000005E /* flickbo.emoji in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000030 /* flickbo.emoji */; };
+		A1000000000000000000005F /* EmojiTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000031 /* EmojiTable.swift */; };
+		A10000000000000000000060 /* EmojiTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000031 /* EmojiTable.swift */; };
 		A1000000000000000000005B /* OpenCCTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002E /* OpenCCTests.swift */; };
+		A10000000000000000000061 /* EmojiCandidateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000032 /* EmojiCandidateTests.swift */; };
 		A1000000000000000000005C /* OpenCC-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002F /* OpenCC-LICENSE.txt */; };
 		A1000000000000000000005D /* OpenCC-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002F /* OpenCC-LICENSE.txt */; };
 		A10000000000000000000036 /* DecoderPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000018 /* DecoderPerformanceTests.swift */; };
@@ -178,7 +182,10 @@
 		B1000000000000000000002B /* OpenCC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCC.swift; sourceTree = "<group>"; };
 		B1000000000000000000002C /* CharacterVariant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterVariant.swift; sourceTree = "<group>"; };
 		B1000000000000000000002D /* flickbo.opencc */ = {isa = PBXFileReference; lastKnownFileType = file; path = flickbo.opencc; sourceTree = "<group>"; };
+		B10000000000000000000030 /* flickbo.emoji */ = {isa = PBXFileReference; lastKnownFileType = text; path = flickbo.emoji; sourceTree = "<group>"; };
+		B10000000000000000000031 /* EmojiTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiTable.swift; sourceTree = "<group>"; };
 		B1000000000000000000002E /* OpenCCTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCCTests.swift; sourceTree = "<group>"; };
+		B10000000000000000000032 /* EmojiCandidateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiCandidateTests.swift; sourceTree = "<group>"; };
 		B1000000000000000000002F /* OpenCC-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "OpenCC-LICENSE.txt"; path = "Vendor/opencc/OpenCC-LICENSE.txt"; sourceTree = SOURCE_ROOT; };
 		B10000000000000000000018 /* DecoderPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecoderPerformanceTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000019 /* ChineseInputPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChineseInputPipeline.swift; sourceTree = "<group>"; };
@@ -294,6 +301,7 @@
 				B10000000000000000000017 /* DecoderTests.swift */,
 				B10000000000000000000028 /* GrammarTests.swift */,
 				B1000000000000000000002E /* OpenCCTests.swift */,
+				B10000000000000000000032 /* EmojiCandidateTests.swift */,
 				B10000000000000000000018 /* DecoderPerformanceTests.swift */,
 				B1000000000000000000001F /* InlineCompositionTests.swift */,
 				D10000000000000000000009 /* Fixtures */,
@@ -328,6 +336,7 @@
 				B10000000000000000000015 /* DecoderScorer.swift */,
 				B10000000000000000000024 /* GramStore.swift */,
 				B1000000000000000000002B /* OpenCC.swift */,
+				B10000000000000000000031 /* EmojiTable.swift */,
 				B10000000000000000000025 /* Grammar.swift */,
 				B10000000000000000000016 /* Decoder.swift */,
 				B10000000000000000000019 /* ChineseInputPipeline.swift */,
@@ -343,6 +352,7 @@
 				B10000000000000000000009 /* flickbo.sqlite3 */,
 				B10000000000000000000026 /* flickbo.gram */,
 				B1000000000000000000002D /* flickbo.opencc */,
+				B10000000000000000000030 /* flickbo.emoji */,
 				B10000000000000000000012 /* LICENSE.md */,
 			);
 			path = Generated;
@@ -493,6 +503,7 @@
 				A10000000000000000000022 /* flickbo.sqlite3 in Resources */,
 				A1000000000000000000004D /* flickbo.gram in Resources */,
 				A1000000000000000000005A /* flickbo.opencc in Resources */,
+				A1000000000000000000005E /* flickbo.emoji in Resources */,
 				A10000000000000000000029 /* THIRD_PARTY_NOTICES.md in Resources */,
 				A1000000000000000000002B /* Rime-LGPL-3.0.txt in Resources */,
 				A1000000000000000000005D /* OpenCC-LICENSE.txt in Resources */,
@@ -553,6 +564,7 @@
 				A1000000000000000000002F /* DecoderScorer.swift in Sources */,
 				A10000000000000000000049 /* GramStore.swift in Sources */,
 				A10000000000000000000055 /* OpenCC.swift in Sources */,
+				A1000000000000000000005F /* EmojiTable.swift in Sources */,
 				A1000000000000000000004B /* Grammar.swift in Sources */,
 				A10000000000000000000030 /* Decoder.swift in Sources */,
 				A10000000000000000000037 /* ChineseInputPipeline.swift in Sources */,
@@ -594,8 +606,10 @@
 				A10000000000000000000033 /* DecoderScorer.swift in Sources */,
 				A1000000000000000000004A /* GramStore.swift in Sources */,
 				A10000000000000000000056 /* OpenCC.swift in Sources */,
+				A10000000000000000000060 /* EmojiTable.swift in Sources */,
 				A10000000000000000000059 /* CharacterVariant.swift in Sources */,
 				A1000000000000000000005B /* OpenCCTests.swift in Sources */,
+				A10000000000000000000061 /* EmojiCandidateTests.swift in Sources */,
 				A1000000000000000000004C /* Grammar.swift in Sources */,
 				A1000000000000000000004F /* GrammarTests.swift in Sources */,
 				A10000000000000000000034 /* Decoder.swift in Sources */,

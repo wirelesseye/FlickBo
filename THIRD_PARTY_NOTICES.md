@@ -35,6 +35,17 @@ FlickBo（滑注音）包含由第三方資料轉換而成的中文詞典。以�
 
 使用的原始檔為 `zh-hant-t-essay-bgw.gram`，內容為以詞為單位的繁體中文 n-gram 統計。FlickBo 將其 darts 雙陣列 trie 解碼為 n-gram 與分數，移除執行期不會查詢的句首（`$` 開頭）條目，改以 UTF-8 重新排序、分區塊前綴壓縮並以 16 位元量化分數，封裝為 `flickbo.gram`。評分方式移植自 BSD 授權的 librime-octagram（<https://github.com/lotem/librime-octagram>）。轉換工具及來源 manifest 可在 FlickBo repository 的 `Tools/DictionaryCompiler/` 與 `Vendor/rime-octagram-data/` 找到。
 
+## rime-emoji
+
+- 名稱：rime-emoji（Rime 繪文字輸入方案資料）
+- 作者／維護者：Rime contributors
+- 來源：<https://github.com/rime/rime-emoji>
+- 使用版本：commit `39d232996de79a95d7bf4b5e8533feed5326b075`
+- 授權：GNU Lesser General Public License v3.0
+- 授權全文：隨 App 一併提供的 `LICENSE`，或 <https://www.gnu.org/licenses/lgpl-3.0.html>
+
+使用的原始檔為 `opencc/emoji_word.txt`，內容為中文詞與對應繪文字。FlickBo 移除每行開頭重複的詞本身與重複的繪文字，刪去膚色修飾符後多餘的 U+FE0F，驗證每個值都是繪文字，再依 UTF-8 排序輸出為 `flickbo.emoji`，在候選詞之後提供繪文字；未使用 `emoji_category.txt`。轉換工具及來源 manifest 可在 FlickBo repository 的 `Tools/DictionaryCompiler/emoji_data.py` 與 `Vendor/rime-emoji/` 找到。
+
 ## OpenCC
 
 - 名稱：Open Chinese Convert（OpenCC）字典資料

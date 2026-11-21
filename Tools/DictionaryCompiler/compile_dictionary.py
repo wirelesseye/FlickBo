@@ -23,6 +23,7 @@ from opencc_data import (
     parse_dictionary_text as parse_opencc_dictionary_text,
     write_fzopencc,
 )
+from emoji_data import EMOJI_FORMAT_VERSION, EmojiFormatError, format_emoji_table, parse_emoji_words
 from octagram import FZGRAM_DEFAULT_BLOCK_SIZE, FZGram, GramFormatError, read_gram, write_fzgram
 from pinyin_to_zhuyin import PinyinError, convert_syllable, strip_tone
 
@@ -43,6 +44,10 @@ OPENCC_RAW_BASE_URL = "https://raw.githubusercontent.com/BYVoid/OpenCC"
 OPENCC_DICTIONARY_DIRECTORY = "data/dictionary"
 OPENCC_TESTCASES_PATH = "test/testcases/testcases.json"
 OPENCC_COMPILER_VERSION = 1
+EMOJI_REPOSITORY = "https://github.com/rime/rime-emoji"
+EMOJI_RAW_BASE_URL = "https://raw.githubusercontent.com/rime/rime-emoji"
+EMOJI_WORD_PATH = "opencc/emoji_word.txt"
+MAXIMUM_EMOJI_BYTES = 1024 * 1024
 MAXIMUM_OPENCC_BYTES = 8 * 1024 * 1024
 MAXIMUM_GRAMMAR_BYTES = 64 * 1024 * 1024
 MAXIMUM_GRAMMAR_KEY_CHARACTERS = 8
@@ -1998,6 +2003,88 @@ def command_build_opencc(args: argparse.Namespace) -> int:
     return 0
 
 
+def emoji_source_files() -> dict[str, str]:
+    """Local file name -> path inside the rime-emoji repository."""
+    return {"emoji_word.txt": EMOJI_WORD_PATH, "LICENSE": "LICENSE"}
+
+
+def command_fetch_emoji(args: argparse.Namespace) -> int:
+    if not validate_commit(args.commit):
+        print("fetch-emoji: --commit must be a full 40-character lowercase hex commit", file=sys.stderr)
+        return 2
+    destination = Path(args.dest)
+    files = {
+        name: download(f"{EMOJI_RAW_BASE_URL}/{args.commit}/{path}")
+        for name, path in emoji_source_files().items()
+    }
+    try:
+        table = parse_emoji_words(files["emoji_word.txt"].decode("utf-8"), EMOJI_WORD_PATH)
+    except (EmojiFormatError, UnicodeDecodeError) as error:
+        print(f"fetch-emoji: invalid emoji data: {error}", file=sys.stderr)
+        return 1
+    manifest = {
+        "repository": EMOJI_REPOSITORY,
+        "commit": args.commit,
+        "formatVersion": EMOJI_FORMAT_VERSION,
+        "files": {
+            name: {"path": path, "sha256": sha256_bytes(files[name])}
+            for name, path in emoji_source_files().items()
+        },
+        "wordCount": len(table),
+        "retrievedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    destination.mkdir(parents=True, exist_ok=True)
+    for name, data in files.items():
+        (destination / name).write_bytes(data)
+    (destination / "SOURCE.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"fetch-emoji: wrote {len(files)} files to {destination} ({len(table)} words)")
+    return 0
+
+
+def build_emoji(source_directory: Path, manifest_path: Path, output_path: Path) -> tuple[int, int]:
+    """Returns the word count and output size."""
+    manifest = load_manifest(manifest_path)
+    if manifest.get("formatVersion") != EMOJI_FORMAT_VERSION:
+        raise CompileFailure(
+            f"{manifest_path}: unsupported emoji formatVersion {manifest.get('formatVersion')!r}, "
+            f"expected {EMOJI_FORMAT_VERSION}"
+        )
+    expected = manifest.get("files")
+    if not isinstance(expected, dict):
+        raise CompileFailure(f"{manifest_path}: missing files")
+    for name in emoji_source_files():
+        record = expected.get(name)
+        if not isinstance(record, dict) or not SHA256_PATTERN.fullmatch(str(record.get("sha256", ""))):
+            raise CompileFailure(f"{manifest_path}: missing sha256 for {name}")
+        actual = sha256_bytes((source_directory / name).read_bytes())
+        if actual != record["sha256"]:
+            raise CompileFailure(f"{name}: sha256 {actual} does not match manifest {record['sha256']}")
+    try:
+        table = parse_emoji_words(
+            (source_directory / "emoji_word.txt").read_text(encoding="utf-8"), EMOJI_WORD_PATH
+        )
+    except EmojiFormatError as error:
+        raise CompileFailure(str(error)) from error
+    data = format_emoji_table(table).encode("utf-8")
+    if len(data) > MAXIMUM_EMOJI_BYTES:
+        raise CompileFailure(f"emoji output is {len(data)} bytes, above {MAXIMUM_EMOJI_BYTES}")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(data)
+    return len(table), len(data)
+
+
+def command_build_emoji(args: argparse.Namespace) -> int:
+    try:
+        words, size = build_emoji(Path(args.source_dir), Path(args.manifest), Path(args.output))
+    except (CompileFailure, OSError) as failure:
+        print(f"build-emoji: failed: {failure}", file=sys.stderr)
+        return 1
+    print(f"build-emoji: {words} words, {size} bytes")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Compile the pinned Rime sources into the SQLite dictionary and FZGram grammar"
@@ -2067,6 +2154,21 @@ def main(argv: list[str] | None = None) -> int:
         "--golden", help="also write conversion<TAB>input<TAB>expected rows for the Swift tests"
     )
     build_opencc_parser.set_defaults(func=command_build_opencc)
+
+    fetch_emoji = subparsers.add_parser(
+        "fetch-emoji", help="download the pinned rime-emoji word table and license"
+    )
+    fetch_emoji.add_argument("--commit", required=True)
+    fetch_emoji.add_argument("--dest", default="Vendor/rime-emoji")
+    fetch_emoji.set_defaults(func=command_fetch_emoji)
+
+    build_emoji_parser = subparsers.add_parser(
+        "build-emoji", help="compile the rime-emoji word table without network access"
+    )
+    build_emoji_parser.add_argument("--source-dir", default="Vendor/rime-emoji")
+    build_emoji_parser.add_argument("--manifest", default="Vendor/rime-emoji/SOURCE.json")
+    build_emoji_parser.add_argument("--output", default="Generated/flickbo.emoji")
+    build_emoji_parser.set_defaults(func=command_build_emoji)
 
     args = parser.parse_args(argv)
     return args.func(args)

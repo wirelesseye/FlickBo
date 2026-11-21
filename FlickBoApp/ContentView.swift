@@ -18,6 +18,10 @@ struct ContentView: View {
         store: KeyboardSettings.sharedDefaults
     ) private var remembersSelections = KeyboardSettings.remembersSelections
     @AppStorage(
+        KeyboardSettings.showsEmojiCandidatesKey,
+        store: KeyboardSettings.sharedDefaults
+    ) private var showsEmojiCandidates = KeyboardSettings.showsEmojiCandidates
+    @AppStorage(
         KeyboardSettings.abcUsesFlickLayoutKey,
         store: KeyboardSettings.sharedDefaults
     ) private var abcUsesFlickLayout = KeyboardSettings.abcUsesFlickLayout
@@ -100,6 +104,9 @@ struct ContentView: View {
                         Toggle(isOn: $remembersSelections) {
                             SettingLabel("記憶選字", systemImage: "brain", color: .pink)
                         }
+                        Toggle(isOn: $showsEmojiCandidates) {
+                            SettingLabel("候選詞顯示繪文字", systemImage: "face.smiling", color: .yellow)
+                        }
                         NavigationLink {
                             CustomWordsView()
                         } label: {
@@ -108,7 +115,7 @@ struct ContentView: View {
                     } header: {
                         Text("輸入")
                     } footer: {
-                        Text("關閉自動提交後，需按「確定」提交組字內容。記憶選字會在提交後記住新詞與選字次數，鍵盤需開啟「允許完整取用」才能寫入，資料只保存在此裝置。自訂詞彙可隨時編輯，不會被清除學習資料刪除。")
+                        Text("關閉自動提交後，需按「確定」提交組字內容。記憶選字會在提交後記住新詞與選字次數，鍵盤需開啟「允許完整取用」才能寫入，資料只保存在此裝置。繪文字接在對應的詞後面，例如「笑」之後出現 😄，不會影響記憶選字。自訂詞彙可隨時編輯，不會被清除學習資料刪除。")
                     }
                 }
                 .disabled(!sharedSettingsAvailable)

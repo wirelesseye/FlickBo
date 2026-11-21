@@ -1,6 +1,6 @@
 # 詞典與語言模型資料授權
 
-本文件涵蓋 `flickbo.sqlite3`、`flickbo.gram` 與 `flickbo.opencc`。
+本文件涵蓋 `flickbo.sqlite3`、`flickbo.gram`、`flickbo.opencc` 與 `flickbo.emoji`。
 
 ## flickbo.sqlite3
 
@@ -40,3 +40,11 @@ Terra 部分提供字音、多音字與明確詞條，依 CC BY-SA 3.0 提供；
 - 授權：Apache License 2.0，<https://www.apache.org/licenses/LICENSE-2.0>（全文見 `Vendor/opencc/OpenCC-LICENSE.txt`）
 
 轉換包括產生反向字典、只保留預設轉換結果、依 UTF-8 排序並與轉換鏈一同封裝為 FZOpenCC 格式。
+
+## flickbo.emoji
+
+- 上游：<https://github.com/rime/rime-emoji>（`opencc/emoji_word.txt`）
+- Commit：`39d232996de79a95d7bf4b5e8533feed5326b075`
+- 授權：GNU LGPL v3.0，<https://www.gnu.org/licenses/lgpl-3.0.html>
+
+轉換包括移除重複的詞本身與繪文字、刪去膚色修飾符後多餘的 U+FE0F、驗證繪文字並依 UTF-8 排序。

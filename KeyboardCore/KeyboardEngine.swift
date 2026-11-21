@@ -164,7 +164,8 @@ struct KeyboardEngine: Sendable {
                 text: candidate.text,
                 canonicalText: candidate.canonicalText,
                 sourceTokens: tokens,
-                pronunciation: candidate.pronunciation
+                pronunciation: candidate.pronunciation,
+                isEmoji: candidate.isEmoji
             )
         )
         if autoCommit, !composition.hasPendingTokens {

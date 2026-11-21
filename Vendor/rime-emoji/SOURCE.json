@@ -1,0 +1,17 @@
+{
+  "repository": "https://github.com/rime/rime-emoji",
+  "commit": "39d232996de79a95d7bf4b5e8533feed5326b075",
+  "formatVersion": 1,
+  "files": {
+    "emoji_word.txt": {
+      "path": "opencc/emoji_word.txt",
+      "sha256": "301d3ea25833186aa89369ecc515f8f43fe6d9db2a9794df083f7316375b18f5"
+    },
+    "LICENSE": {
+      "path": "LICENSE",
+      "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768"
+    }
+  },
+  "wordCount": 4669,
+  "retrievedAt": "2026-11-21T10:32:36Z"
+}

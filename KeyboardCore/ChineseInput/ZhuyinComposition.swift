@@ -16,19 +16,23 @@ struct SelectedChunk: Equatable, Sendable {
     let canonicalText: String
     let sourceTokens: [ZhuyinInputToken]
     let pronunciation: [SyllableConstraint]
+    /// Chosen from an emoji candidate: not learned and not grammar context.
+    let isEmoji: Bool
 
     init(
         id: UUID = UUID(),
         text: String,
         canonicalText: String? = nil,
         sourceTokens: [ZhuyinInputToken],
-        pronunciation: [SyllableConstraint]
+        pronunciation: [SyllableConstraint],
+        isEmoji: Bool = false
     ) {
         self.id = id
         self.text = text
         self.canonicalText = canonicalText ?? text
         self.sourceTokens = sourceTokens
         self.pronunciation = pronunciation
+        self.isEmoji = isEmoji
     }
 }
 
@@ -89,10 +93,12 @@ struct ZhuyinComposition: Equatable, Sendable {
     /// Selected text directly left of the active run, as grammar context.
     /// `reachesStart` is true when nothing unconverted sits between it and the
     /// start of the composition, so the document's own text continues it.
+    /// An emoji ends the context like punctuation does.
     var precedingContext: (text: String, reachesStart: Bool) {
         var texts: [String] = []
         var index = activeTokenRange.lowerBound
         while index > 0, case let .selected(chunk) = pieces[index - 1] {
+            guard !chunk.isEmoji else { return (texts.reversed().joined(), false) }
             texts.append(chunk.text)
             index -= 1
         }

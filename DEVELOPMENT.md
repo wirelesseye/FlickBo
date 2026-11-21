@@ -15,7 +15,8 @@ Vendor/rime-terra-pinyin/      鎖定版本的上游詞典、授權與 manifest
 Vendor/rime-essay/             鎖定版本的上游預設詞彙、授權與 manifest
 Vendor/rime-octagram-data/     鎖定版本的語言模型 manifest 與授權（.gram 本體需另行下載）
 Vendor/opencc/                 鎖定版本的 OpenCC 字典、測試案例、授權與 manifest
-Generated/                     編譯產物（SQLite 詞典、FZGram 語言模型、FZOpenCC 字形轉換與 report）
+Vendor/rime-emoji/             鎖定版本的 rime-emoji 詞對繪文字表、授權與 manifest
+Generated/                     編譯產物（SQLite 詞典、FZGram 語言模型、FZOpenCC 字形轉換、繪文字表與 report）
 ```
 
 ## 架構
@@ -38,6 +39,7 @@ Generated/                     編譯產物（SQLite 詞典、FZGram 語言模�
 - `LexiconChineseInputPipeline` 在初始化時建立並長期持有 store、parser、matcher 與 decoder，把 Top-K 結果轉成精簡的 `InputCandidate`；轉換時依文字合併候選、每組保留分數最低者，raw 注音候選不受合併影響，並在必要時補上 raw 注音候選；若游標前輸入是全範圍的完整單一音節，再從 store 取出該音節所有單字詞條、以同一 scorer 計分後接在最後。
 - 詞本身的 cost 由可替換的 `DecoderScorer` 負責，目前 `BaselineDecoderScorer` 使用 Essay 詞頻 `sourceWeight`、Terra 讀音可信度 `pronunciationWeight`、parser cost 與簡易分詞懲罰。詞頻成本為 `frequencyCostScale × (1 − sourceWeight)`（預設 8）：由於 `sourceWeight = log1p(f) / log1p(max)`，這等於相對詞頻負對數的固定倍數（8 時約 0.52 倍），讀音成本則為 `readingCostScale × -log(pronunciationWeight)`（預設 0.35）。原本的 `-log(sourceWeight)` 把對數又取一次對數，「爲」比「未」高約 12 倍的詞頻只換得 0.22 的成本差，抵不過「爲」兩個讀音各 50% 的 0.69 讀音成本，單打ㄨㄟˋ時「爲」排不進前 8 名。讀音權重是估計值（Terra 百分比經 Essay 用量修正，合成詞取各字乘積），全額計分時「長」（ㄓㄤˇ 約 31%）與合成詞「長大」即使詞頻較高仍輸給「漲」「漲大」，因此讀音成本打折。在 gold set 上掃描兩個倍數，詞頻 6–8、讀音 0.3–0.4 的區域在有無語言模型時都最好（無 45／有 47；詞頻 5、讀音全額為 43／45，舊公式 41／42），預設取區域中央。每個詞的分詞懲罰 `wordBoundaryCost` 隨詞頻倍數等比例調為 0.56（原 0.35 對應倍數 5），否則高頻短詞拼接（可以＋看）會比完整詞（可以看）便宜；調整後無語言模型再多對 1 句。使用者選字次數的成本減免（上限 2.5，八次選字約 2.25）沿用原值，因詞頻倍數提高，可追過的詞頻差相對縮小；前後詞的搭配由 `GrammarModel` 另外計分。語言模型檔缺失或損毀時 Pipeline 會記錄錯誤並退回無語言模型的排序，輸入不中斷。
 - 語言模型上下文：`ZhuyinComposition.precedingContext` 提供游標前連續的已選文字；若它延伸到組字開頭，`KeyboardViewController` 會在組字開始前讀取 `documentContextBeforeInput`，以 `GrammarContext.tail` 取最後一段連續文字（遇空白、標點或換行即截斷，最多 8 字）接在前面。上下文只存在記憶體中。
+- 繪文字候選：`EmojiTable` 讀取 `flickbo.emoji`（見 [繪文字資料編譯](#繪文字資料編譯)）。`LexiconChineseInputPipeline` 在字形轉換之後，對前 `emojiSourceCandidateLimit`（3）個涵蓋全部輸入的非 raw 候選，以 `canonicalText`（查不到時再用顯示文字）查表，把繪文字以 `InputCandidate.emoji(_:for:)` 接在該詞後面，所以首選永遠是詞，同一個繪文字只出現一次。繪文字候選沿用來源詞的讀音與 token 範圍，`isEmoji` 為 true；選取後的 `SelectedChunk.isEmoji` 讓 `learningEntries` 略過它，含繪文字的組字也不會學成新詞，`precedingContext` 遇到繪文字即截斷語言模型上下文。App Group 的 `showsEmojiCandidates`（預設開啟）改變時，`KeyboardViewController` 在下一次 `viewWillAppear` 重建 Pipeline；`flickbo.emoji` 缺失時記錄錯誤並只顯示詞候選。
 - 地區字形：詞庫、語言模型與使用者學習資料都維持 OpenCC 標準繁體（傳承字形），只在 Pipeline 邊界轉換，見 [地區字形](#地區字形)。
 - Keyboard Extension 的 decoder 上限為 30 個候選（`KeyboardViewController.maximumCandidateCount`）；`KeyboardCore` 的 `DecoderConfiguration.maximumCandidates` 預設為 10。
 
@@ -207,6 +209,25 @@ python3 Tools/DictionaryCompiler/compile_dictionary.py build-opencc \
 - 未實作的 OpenCC 功能：segmentation（這些設定都沒有使用）、`may_output_tofu` 字典（OpenCC 預設關閉）與 `STPhrases_GeneratedFromRegionalPhrases`（只影響讀取前文用的 `s2t`）。
 - Python 測試以 OpenCC 上游 `testcases.json` 驗證參考實作（排除 3 個需要 tofu 字典的 `t2s` 案例），並確認納入版控的 `flickbo.opencc` 與 `opencc-cases.tsv` 與來源同步；Swift 測試以同一份 golden 驗證執行期轉換器。
 - 產物約 1.8 MB，納入版控，並只加入 `FlickBoKeyboard` 的 bundle resources；授權全文 `Vendor/opencc/OpenCC-LICENSE.txt` 打包進主 App 與 Extension。
+
+## 繪文字資料編譯
+
+rime-emoji 只在更新來源時以 `fetch-emoji` 下載（需指定 40 字元 commit）：
+
+```sh
+python3 Tools/DictionaryCompiler/compile_dictionary.py fetch-emoji \
+  --commit 39d232996de79a95d7bf4b5e8533feed5326b075 \
+  --dest Vendor/rime-emoji
+```
+
+重建 `Generated/flickbo.emoji`（不需要網路）：
+
+```sh
+python3 Tools/DictionaryCompiler/compile_dictionary.py build-emoji
+```
+
+- `emoji_data.py` 解析上游 `opencc/emoji_word.txt`（`詞<TAB>詞 繪文字…`），移除開頭的詞本身與重複繪文字，刪去膚色修飾符後多餘的 U+FE0F，並拒絕含文字的值；格式說明見該檔開頭。未使用 `emoji_category.txt`（分類詞對應過多繪文字）。
+- 產物約 84 KB、4,669 個詞，納入版控，並只加入 `FlickBoKeyboard` 的 bundle resources；Python 測試確認它與 vendored 來源同步。rime-emoji 的 LGPL 授權與已打包的 Rime 授權全文相同。
 
 ## 效能
 

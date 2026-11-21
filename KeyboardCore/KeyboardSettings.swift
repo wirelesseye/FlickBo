@@ -10,6 +10,7 @@ enum KeyboardSettings {
     static let remembersSelectionsKey = "remembersSelections"
     static let abcUsesFlickLayoutKey = "abcUsesFlickLayout"
     static let characterVariantKey = "characterVariant"
+    static let showsEmojiCandidatesKey = "showsEmojiCandidates"
 
     private static let appGroupCandidates: [String] = {
         guard let bundleID = Bundle.main.bundleIdentifier,
@@ -81,6 +82,12 @@ enum KeyboardSettings {
 
     private static func fullWidthKey(_ mode: String) -> String {
         "usesFullWidth." + mode
+    }
+
+    /// Offers rime-emoji emoji after matching word candidates.
+    static var showsEmojiCandidates: Bool {
+        get { boolValue(for: showsEmojiCandidatesKey) }
+        set { sharedDefaults?.set(newValue, forKey: showsEmojiCandidatesKey) }
     }
 
     static var abcUsesFlickLayout: Bool {

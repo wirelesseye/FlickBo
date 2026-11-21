@@ -31,6 +31,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     private var coordinator: ChineseInputCoordinator?
     private var coordinatorHasFullAccess: Bool?
     private var coordinatorCharacterVariant: CharacterVariant?
+    private var coordinatorShowsEmoji: Bool?
     /// The variant in use. Kept here so the toolbar menu still works when the
     /// App Group cannot be written; `settingsCharacterVariant` notices changes
     /// made in the app.
@@ -61,7 +62,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
             candidateBar?.characterVariant = settingsVariant
         }
         let variantChanged = coordinatorCharacterVariant.map { $0 != characterVariant } ?? false
-        if accessChanged || variantChanged {
+        let emojiChanged = coordinatorShowsEmoji.map { $0 != KeyboardSettings.showsEmojiCandidates } ?? false
+        if accessChanged || variantChanged || emojiChanged {
             resetCoordinator()
         }
         let shows = KeyboardSettings.showsDirectionalSymbols
@@ -503,6 +505,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         coordinator = nil
         coordinatorHasFullAccess = nil
         coordinatorCharacterVariant = nil
+        coordinatorShowsEmoji = nil
     }
 
     private func toggleCharacterWidth() {
@@ -820,6 +823,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         }
         let fullAccess = hasFullAccess
         let characterVariant = self.characterVariant
+        let showsEmoji = KeyboardSettings.showsEmojiCandidates
         let coordinator = ChineseInputCoordinator { [bundle = Bundle.main] in
             let userStore = KeyboardSettings.userLearningURL.flatMap {
                 try? UserLearningStore(url: $0, writable: fullAccess)
@@ -832,13 +836,15 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
                     )
                 ),
                 userLearningStore: userStore,
-                characterVariant: characterVariant
+                characterVariant: characterVariant,
+                includesEmoji: showsEmoji
             )
         }
         coordinator.onChange = { [weak self] in self?.refreshCandidates() }
         self.coordinator = coordinator
         coordinatorHasFullAccess = fullAccess
         coordinatorCharacterVariant = characterVariant
+        coordinatorShowsEmoji = showsEmoji
         return coordinator
     }
 
