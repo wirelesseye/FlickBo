@@ -84,6 +84,13 @@ struct ContentView: View {
                         Button("清除學習資料", role: .destructive) {
                             showsClearConfirmation = true
                         }
+
+                        NavigationLink("自訂詞彙") {
+                            CustomWordsView()
+                        }
+                        Text("自行加入的詞彙與讀音，可隨時編輯。與自動記憶的選字不同，不會被清除學習資料刪除。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                     .disabled(KeyboardSettings.appGroupIdentifier == nil)
 

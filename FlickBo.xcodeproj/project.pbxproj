@@ -46,6 +46,7 @@
 		A10000000000000000000025 /* ProductionDictionaryIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000D /* ProductionDictionaryIntegrationTests.swift */; };
 		A10000000000000000000026 /* ChineseInputPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E /* ChineseInputPerformanceTests.swift */; };
 		A10000000000000000000027 /* ThirdPartyLicensesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000F /* ThirdPartyLicensesView.swift */; };
+		A10000000000000000000F01 /* CustomWordsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000F01 /* CustomWordsView.swift */; };
 		A10000000000000000000028 /* THIRD_PARTY_NOTICES.md in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* THIRD_PARTY_NOTICES.md */; };
 		A10000000000000000000029 /* THIRD_PARTY_NOTICES.md in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* THIRD_PARTY_NOTICES.md */; };
 		A1000000000000000000002A /* Rime-LGPL-3.0.txt in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* Rime-LGPL-3.0.txt */; };
@@ -157,6 +158,7 @@
 		B1000000000000000000000C /* ChineseInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChineseInputTests.swift; sourceTree = "<group>"; };
 		B1000000000000000000000D /* ProductionDictionaryIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductionDictionaryIntegrationTests.swift; sourceTree = "<group>"; };
 		B1000000000000000000000E /* ChineseInputPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChineseInputPerformanceTests.swift; sourceTree = "<group>"; };
+		B10000000000000000000F01 /* CustomWordsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomWordsView.swift; sourceTree = "<group>"; };
 		B1000000000000000000000F /* ThirdPartyLicensesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThirdPartyLicensesView.swift; sourceTree = "<group>"; };
 		B10000000000000000000010 /* THIRD_PARTY_NOTICES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = THIRD_PARTY_NOTICES.md; sourceTree = SOURCE_ROOT; };
 		B10000000000000000000011 /* Rime-LGPL-3.0.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "Rime-LGPL-3.0.txt"; path = "Vendor/rime-terra-pinyin/LICENSE"; sourceTree = SOURCE_ROOT; };
@@ -243,6 +245,7 @@
 				B00000000000000000000001 /* FlickBoApp.swift */,
 				B00000000000000000000002 /* ContentView.swift */,
 				B1000000000000000000000F /* ThirdPartyLicensesView.swift */,
+				B10000000000000000000F01 /* CustomWordsView.swift */,
 				B10000000000000000000022 /* FlickBo.entitlements */,
 				D20000000000000000000001 /* InfoPlist.strings */,
 			);
@@ -517,6 +520,7 @@
 				A00000000000000000000001 /* FlickBoApp.swift in Sources */,
 				A00000000000000000000002 /* ContentView.swift in Sources */,
 				A10000000000000000000027 /* ThirdPartyLicensesView.swift in Sources */,
+				A10000000000000000000F01 /* CustomWordsView.swift in Sources */,
 				A10000000000000000000044 /* KeyboardSettings.swift in Sources */,
 				A10000000000000000000057 /* CharacterVariant.swift in Sources */,
 				A10000000000000000000050 /* UserLearningStore.swift in Sources */,

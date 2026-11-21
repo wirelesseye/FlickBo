@@ -32,11 +32,12 @@ struct CombinedLexiconStore: LexiconStore {
     func exactMatches(for syllables: [SyllableConstraint]) throws -> [LexiconMatch] {
         let bundledMatches = try bundled.exactMatches(for: syllables)
         guard let learned, !syllables.isEmpty else { return bundledMatches }
-        guard let records = try? learned.exactRecords(
-            baseKey: syllables.map(\.base).joined(separator: "\u{1f}"),
-            syllableCount: syllables.count
-        ) else { return bundledMatches }
-        return bundledMatches + records.compactMap(Self.match).filter { match in
+        let baseKey = syllables.map(\.base).joined(separator: "\u{1f}")
+        let custom = ((try? learned.customExactRecords(baseKey: baseKey, syllableCount: syllables.count)) ?? [])
+            .compactMap { Self.match($0, sourceWeight: Self.customWeight) }
+        let records = (try? learned.exactRecords(baseKey: baseKey, syllableCount: syllables.count)) ?? []
+        let personal = custom + records.compactMap { Self.match($0) }
+        return bundledMatches + personal.filter { match in
             zip(syllables, match.pronunciation).allSatisfy { constraint, syllable in
                 constraint.tone == nil || constraint.tone == syllable.tone
             }
@@ -54,12 +55,15 @@ struct CombinedLexiconStore: LexiconStore {
         guard let learned, resultLimit > 0, scanLimit > 0,
               let initialKey = SQLiteLexiconStore.initialKey(for: patterns)
         else { return bundledMatches }
-        guard let records = try? learned.patternRecords(
+        let custom = ((try? learned.customPatternRecords(
+            initialKey: initialKey, syllableCount: patterns.count, scanLimit: scanLimit
+        )) ?? []).compactMap { Self.match($0, sourceWeight: Self.customWeight) }
+        let records = (try? learned.patternRecords(
             initialKey: initialKey,
             syllableCount: patterns.count,
             scanLimit: scanLimit
-        ) else { return bundledMatches }
-        let personal = records.compactMap(Self.match).filter { match in
+        )) ?? []
+        let personal = (custom + records.compactMap { Self.match($0) }).filter { match in
             zip(patterns, match.pronunciation).allSatisfy { pattern, syllable in
                 pattern.accepts(base: syllable.base, tone: syllable.tone)
             }
@@ -67,7 +71,10 @@ struct CombinedLexiconStore: LexiconStore {
         return Array((personal + bundledMatches).prefix(resultLimit))
     }
 
-    private static func match(_ record: UserWordRecord) -> LexiconMatch? {
+    /// Hand-entered words rank above everything the dictionary scores.
+    private static let customWeight = 1.0
+
+    private static func match(_ record: UserWordRecord, sourceWeight: Double = 0.01) -> LexiconMatch? {
         let bases = record.key.baseKey.split(separator: "\u{1f}").map(String.init)
         let tones = record.key.toneKey.compactMap(MandarinTone.init(digit:))
         guard bases.count == tones.count, !bases.isEmpty else { return nil }
@@ -75,7 +82,7 @@ struct CombinedLexiconStore: LexiconStore {
         return LexiconMatch(
             text: record.key.text,
             pronunciation: pronunciation,
-            sourceWeight: 0.01
+            sourceWeight: sourceWeight
         )
     }
 }

@@ -30,6 +30,49 @@ struct UserWordKey: Hashable, Sendable {
     }
 }
 
+extension UserWordKey {
+    private static let toneMarks: [Character: Character] = ["ˉ": "1", "ˊ": "2", "ˇ": "3", "ˋ": "4", "˙": "5"]
+
+    /// Builds a key from a typed zhuyin reading such as "ㄋㄧˇ ㄏㄠˇ". Syllables are
+    /// separated by spaces; a missing tone mark means first tone and the neutral
+    /// mark may lead or trail. Returns nil if the reading is malformed or does not
+    /// have one syllable per character.
+    init?(text: String, reading: String) {
+        var bases: [String] = []
+        var tones = ""
+        for word in reading.split(whereSeparator: \.isWhitespace) {
+            var characters = Array(word)
+            var tone: Character = "1"
+            if characters.first == "˙" {
+                tone = "5"
+                characters.removeFirst()
+            } else if let last = characters.last, let digit = Self.toneMarks[last] {
+                tone = digit
+                characters.removeLast()
+            }
+            guard (1...3).contains(characters.count),
+                  characters.allSatisfy({ $0.unicodeScalars.allSatisfy { (0x3105...0x312F).contains($0.value) } })
+            else { return nil }
+            bases.append(String(characters))
+            tones.append(tone)
+        }
+        self.init(text: text, baseKey: bases.joined(separator: "\u{1f}"), toneKey: tones)
+        guard isValid else { return nil }
+    }
+
+    /// Display form of the reading, e.g. "ㄋㄧˇ ㄏㄠˇ".
+    var readingText: String {
+        let marks = Dictionary(uniqueKeysWithValues: Self.toneMarks.map { ($1, $0) })
+        return zip(baseKey.split(separator: "\u{1f}"), toneKey).map { base, digit in
+            switch digit {
+            case "1": String(base)
+            case "5": "˙" + base
+            default: base + String(marks[digit] ?? " ")
+            }
+        }.joined(separator: " ")
+    }
+}
+
 struct UserWordRecord: Equatable, Sendable {
     let key: UserWordKey
     let count: Int
@@ -44,7 +87,7 @@ enum UserLearningError: Error {
 /// A separate database in the App Group. The bundled dictionary is never opened for writing.
 final class UserLearningStore: @unchecked Sendable {
     static let fileName = "user-learning.sqlite3"
-    static let schemaVersion = 1
+    static let schemaVersion = 3
 
     private let queue = DispatchQueue(label: "com.wirelesseye.FlickBo.UserLearningStore")
     private let database: OpaquePointer
@@ -65,25 +108,23 @@ final class UserLearningStore: @unchecked Sendable {
         do {
             sqlite3_busy_timeout(handle, 1000)
             let version = try Self.scalar(handle, sql: "PRAGMA user_version")
-            if writable && version == 0 {
-                try Self.execute(handle, sql: """
-                    CREATE TABLE IF NOT EXISTS user_entry (
-                        text TEXT NOT NULL,
-                        base_key TEXT NOT NULL,
-                        tone_key TEXT NOT NULL,
-                        initial_key TEXT NOT NULL,
-                        syllable_count INTEGER NOT NULL,
-                        selection_count INTEGER NOT NULL,
-                        is_learned INTEGER NOT NULL,
-                        PRIMARY KEY (text, base_key, tone_key)
-                    ) WITHOUT ROWID;
-                    CREATE INDEX IF NOT EXISTS user_entry_base
-                    ON user_entry(base_key, syllable_count);
-                    CREATE INDEX IF NOT EXISTS user_entry_initial
-                    ON user_entry(initial_key, syllable_count, selection_count DESC);
-                    PRAGMA user_version = 1;
-                    """)
-            } else if version != Self.schemaVersion {
+            if writable && version < Self.schemaVersion {
+                var sql = ""
+                if version == 0 { sql += Self.learnedSchema }
+                if version < 2 { sql += Self.customSchema }
+                // Seeded once at migration, so deleting a built-in word sticks.
+                for word in Self.builtInCustomWords {
+                    sql += """
+                        INSERT OR IGNORE INTO custom_entry
+                        (text, base_key, tone_key, initial_key, syllable_count, created_at)
+                        VALUES ('\(word.text)', '\(word.baseKey)', '\(word.toneKey)',
+                        '\(word.initialKey)', \(word.syllableCount), 0);
+
+                        """
+                }
+                try Self.execute(handle, sql: sql + "PRAGMA user_version = \(Self.schemaVersion);")
+            } else if !(1...Self.schemaVersion).contains(version) {
+                // A read-only connection can still read an older file; it just lacks newer tables.
                 throw UserLearningError.unsupportedSchema(version)
             }
         } catch {
@@ -93,6 +134,48 @@ final class UserLearningStore: @unchecked Sendable {
     }
 
     deinit { sqlite3_close(database) }
+
+    /// Custom words every install starts with; the user may delete them.
+    private static let builtInCustomWords: [UserWordKey] = [
+        UserWordKey(text: "滑注音", reading: "ㄏㄨㄚˊ ㄓㄨˋ ㄧㄣ"),
+    ].compactMap { $0 }
+
+    private static let learnedSchema = """
+        CREATE TABLE IF NOT EXISTS user_entry (
+            text TEXT NOT NULL,
+            base_key TEXT NOT NULL,
+            tone_key TEXT NOT NULL,
+            initial_key TEXT NOT NULL,
+            syllable_count INTEGER NOT NULL,
+            selection_count INTEGER NOT NULL,
+            is_learned INTEGER NOT NULL,
+            PRIMARY KEY (text, base_key, tone_key)
+        ) WITHOUT ROWID;
+        CREATE INDEX IF NOT EXISTS user_entry_base
+        ON user_entry(base_key, syllable_count);
+        CREATE INDEX IF NOT EXISTS user_entry_initial
+        ON user_entry(initial_key, syllable_count, selection_count DESC);
+
+        """
+
+    /// Words the user typed in by hand. Unlike `user_entry` these are editable and
+    /// are not touched by `clear()`.
+    private static let customSchema = """
+        CREATE TABLE IF NOT EXISTS custom_entry (
+            text TEXT NOT NULL,
+            base_key TEXT NOT NULL,
+            tone_key TEXT NOT NULL,
+            initial_key TEXT NOT NULL,
+            syllable_count INTEGER NOT NULL,
+            created_at REAL NOT NULL,
+            PRIMARY KEY (text, base_key, tone_key)
+        ) WITHOUT ROWID;
+        CREATE INDEX IF NOT EXISTS custom_entry_base
+        ON custom_entry(base_key, syllable_count);
+        CREATE INDEX IF NOT EXISTS custom_entry_initial
+        ON custom_entry(initial_key, syllable_count);
+
+        """
 
     func countSnapshot() throws -> [UserWordKey: Int] {
         try queue.sync {
@@ -169,6 +252,83 @@ final class UserLearningStore: @unchecked Sendable {
                 throw error
             }
         }
+    }
+
+    // MARK: Custom words
+
+    /// All custom words, newest first.
+    func customWords() throws -> [UserWordKey] {
+        try queue.sync {
+            var result: [UserWordKey] = []
+            try query(
+                "SELECT text, base_key, tone_key, 0, 1 FROM custom_entry ORDER BY created_at DESC, text"
+            ) { statement in
+                result.append(try Self.record(statement).key)
+            }
+            return result
+        }
+    }
+
+    /// Returns false when the word with this reading already exists.
+    @discardableResult
+    func addCustomWord(_ key: UserWordKey) throws -> Bool {
+        guard writable, key.isValid else { return false }
+        return try queue.sync {
+            let statement = try Self.prepare(database, sql: """
+                INSERT OR IGNORE INTO custom_entry
+                (text, base_key, tone_key, initial_key, syllable_count, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """)
+            defer { sqlite3_finalize(statement) }
+            try Self.bind(key.text, at: 1, to: statement)
+            try Self.bind(key.baseKey, at: 2, to: statement)
+            try Self.bind(key.toneKey, at: 3, to: statement)
+            try Self.bind(key.initialKey, at: 4, to: statement)
+            sqlite3_bind_int(statement, 5, Int32(key.syllableCount))
+            sqlite3_bind_double(statement, 6, Date().timeIntervalSince1970)
+            guard sqlite3_step(statement) == SQLITE_DONE else { throw error() }
+            return sqlite3_changes(database) > 0
+        }
+    }
+
+    func removeCustomWord(_ key: UserWordKey) throws {
+        guard writable else { return }
+        try queue.sync {
+            let statement = try Self.prepare(
+                database,
+                sql: "DELETE FROM custom_entry WHERE text = ? AND base_key = ? AND tone_key = ?"
+            )
+            defer { sqlite3_finalize(statement) }
+            try Self.bind(key.text, at: 1, to: statement)
+            try Self.bind(key.baseKey, at: 2, to: statement)
+            try Self.bind(key.toneKey, at: 3, to: statement)
+            guard sqlite3_step(statement) == SQLITE_DONE else { throw error() }
+        }
+    }
+
+    func customExactRecords(baseKey: String, syllableCount: Int) throws -> [UserWordRecord] {
+        try records(
+            sql: """
+                SELECT text, base_key, tone_key, 0, 1
+                FROM custom_entry WHERE base_key = ? AND syllable_count = ?
+                ORDER BY created_at DESC LIMIT 256
+                """,
+            key: baseKey,
+            syllableCount: syllableCount
+        )
+    }
+
+    func customPatternRecords(initialKey: String, syllableCount: Int, scanLimit: Int) throws -> [UserWordRecord] {
+        try records(
+            sql: """
+                SELECT text, base_key, tone_key, 0, 1
+                FROM custom_entry WHERE initial_key = ? AND syllable_count = ?
+                ORDER BY created_at DESC LIMIT ?
+                """,
+            key: initialKey,
+            syllableCount: syllableCount,
+            limit: scanLimit
+        )
     }
 
     func clear() throws {

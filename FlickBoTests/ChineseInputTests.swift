@@ -72,6 +72,42 @@ final class UserLearningTests: ChineseInputTestCase {
         XCTAssertTrue(try reader.countSnapshot().isEmpty)
     }
 
+    func testCustomWordsAreEditableSurviveClearAndAppearInLookup() throws {
+        let url = temporaryURL("learning.sqlite3")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let learning = try UserLearningStore(url: url, writable: true)
+        let builtIn = try XCTUnwrap(UserWordKey(text: "滑注音", reading: "ㄏㄨㄚˊ ㄓㄨˋ ㄧㄣ"))
+        XCTAssertEqual(try learning.customWords(), [builtIn], "seeded on creation")
+        try learning.removeCustomWord(builtIn)
+        XCTAssertTrue(try UserLearningStore(url: url, writable: true).customWords().isEmpty, "deletion sticks")
+        let key = try XCTUnwrap(UserWordKey(text: "你好", reading: "ㄋㄧˇ ˙ㄏㄠ"))
+        XCTAssertEqual(key.toneKey, "35")
+        XCTAssertEqual(key.readingText, "ㄋㄧˇ ˙ㄏㄠ")
+        XCTAssertTrue(try learning.addCustomWord(key))
+        XCTAssertFalse(try learning.addCustomWord(key), "duplicates are ignored")
+        let combined = CombinedLexiconStore(bundled: try makeFixtureStore(), learned: learning)
+        let constraints = [
+            SyllableConstraint(base: "ㄋㄧ", tone: .third), SyllableConstraint(base: "ㄏㄠ", tone: .neutral),
+        ]
+        XCTAssertTrue(try combined.exactMatches(for: constraints).contains { $0.text == "你好" })
+        let patterns = ["ㄋ", "ㄏ"].map { SyllableMatchPattern.initial(Character($0)) }
+        XCTAssertTrue(try combined.patternMatches(for: patterns, resultLimit: 64, scanLimit: 128)
+            .contains { $0.text == "你好" })
+        try learning.clear()
+        XCTAssertEqual(try learning.customWords(), [key])
+        try learning.removeCustomWord(key)
+        XCTAssertTrue(try learning.customWords().isEmpty)
+    }
+
+    func testReadingParserRejectsMalformedInput() {
+        XCTAssertNil(UserWordKey(text: "好", reading: ""))
+        XCTAssertNil(UserWordKey(text: "好", reading: "hao"))
+        XCTAssertNil(UserWordKey(text: "好", reading: "ˇ"))
+        XCTAssertNil(UserWordKey(text: "你好", reading: "ㄏㄠˇ"), "syllable count must match")
+        XCTAssertEqual(UserWordKey(text: "好", reading: "ㄏㄠ")?.toneKey, "1")
+    }
+
     func testCommittedCompositionCreatesNewWordWithFullAndInitialLookup() async throws {
         let url = temporaryURL("learning.sqlite3")
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
