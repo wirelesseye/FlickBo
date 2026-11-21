@@ -92,8 +92,15 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func buildABCKeyboard() {
-        let keyboardStack = pinnedVerticalStack(spacing: 7)
+        let mainStack = pinnedVerticalStack(spacing: 7)
+        // No candidates in ABC mode, so the bar always shows the toolbar.
+        mainStack.addArrangedSubview(makeCandidateBar())
+
+        let keyboardStack = UIStackView()
+        keyboardStack.axis = .vertical
+        keyboardStack.spacing = 7
         keyboardStack.distribution = .fillEqually
+        mainStack.addArrangedSubview(keyboardStack)
         for (index, row) in KeyboardLayout.letterRows.enumerated() {
             let rowStack = makeRow()
             if index == 1 {
@@ -121,6 +128,20 @@ final class KeyboardViewController: UIInputViewController {
         keyboardStack.addArrangedSubview(controlStack)
     }
 
+    private func makeCandidateBar() -> CandidateBarView {
+        let candidateBar = CandidateBarView()
+        candidateBar.onSelect = { [weak self] candidate in self?.select(candidate) }
+        candidateBar.onToggleExpansion = { [weak self] in self?.toggleCandidateExpansion() }
+        candidateBar.onVisibleCandidatesChanged = { [weak self] _ in
+            self?.refreshExpandedCandidates()
+        }
+        candidateBar.onOpenSettings = { [weak self] in self?.openContainingApp() }
+        candidateBar.onDismissKeyboard = { [weak self] in self?.dismissKeyboard() }
+        candidateBar.heightAnchor.constraint(equalToConstant: 40).isActive = true
+        self.candidateBar = candidateBar
+        return candidateBar
+    }
+
     private func buildZhuyinKeyboard() {
         buildGridKeyboard(mode: .zhuyin)
     }
@@ -131,17 +152,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private func buildGridKeyboard(mode: KeyboardMode) {
         let mainStack = pinnedVerticalStack(spacing: 7)
-
-        let candidateBar = CandidateBarView()
-        candidateBar.onSelect = { [weak self] candidate in self?.select(candidate) }
-        candidateBar.onToggleExpansion = { [weak self] in self?.toggleCandidateExpansion() }
-        candidateBar.onVisibleCandidatesChanged = { [weak self] _ in
-            self?.refreshExpandedCandidates()
-        }
-        candidateBar.onOpenSettings = { [weak self] in self?.openContainingApp() }
-        candidateBar.heightAnchor.constraint(equalToConstant: 40).isActive = true
-        mainStack.addArrangedSubview(candidateBar)
-        self.candidateBar = candidateBar
+        mainStack.addArrangedSubview(makeCandidateBar())
 
         let leftColumn = makeColumn()
         leftColumn.addArrangedSubview(makeButton(for: .numberSwitch))
@@ -727,10 +738,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private func updateKeyboardHeight() {
         let compact = traitCollection.verticalSizeClass == .compact
-        switch engine.mode {
-        case .zhuyin, .number: heightConstraint?.constant = compact ? 220 : 280
-        case .abc: heightConstraint?.constant = compact ? 190 : 230
-        }
+        heightConstraint?.constant = compact ? 220 : 280
     }
 
     private func refreshReturnKeyFace() {

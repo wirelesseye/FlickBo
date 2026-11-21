@@ -58,6 +58,7 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
     var onToggleExpansion: (() -> Void)?
     var onVisibleCandidatesChanged: ((Int) -> Void)?
     var onOpenSettings: (() -> Void)?
+    var onDismissKeyboard: (() -> Void)?
 
     private(set) var isExpanded = false
     private(set) var visibleCandidateCount = 0
@@ -83,6 +84,7 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
     private let hitSurfaceView = UIView()
     private let toolbarView = UIStackView()
     private let settingsButton = ToolbarButton(type: .custom)
+    private let dismissButton = ToolbarButton(type: .custom)
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -174,15 +176,36 @@ final class CandidateBarView: UIView, UICollectionViewDataSource, UICollectionVi
         )
         settingsButton.widthAnchor.constraint(equalToConstant: 44).isActive = true
 
+        dismissButton.setImage(
+            UIImage(
+                systemName: "keyboard.chevron.compact.down",
+                withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+            ),
+            for: .normal
+        )
+        dismissButton.accessibilityIdentifier = "toolbar-dismiss-keyboard"
+        dismissButton.accessibilityLabel = "隱藏鍵盤"
+        dismissButton.addAction(
+            UIAction { [weak self] _ in self?.onDismissKeyboard?() },
+            for: .touchUpInside
+        )
+        dismissButton.widthAnchor.constraint(equalToConstant: 44).isActive = true
+
+        let toolbarSpacer = UIView()
+        toolbarSpacer.setContentHuggingPriority(.defaultLow - 1, for: .horizontal)
+
         toolbarView.axis = .horizontal
         toolbarView.alignment = .fill
         toolbarView.spacing = 4
         toolbarView.addArrangedSubview(settingsButton)
+        toolbarView.addArrangedSubview(toolbarSpacer)
+        toolbarView.addArrangedSubview(dismissButton)
         toolbarView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(toolbarView)
 
         NSLayoutConstraint.activate([
             toolbarView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.contentInset),
+            toolbarView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.contentInset),
             toolbarView.topAnchor.constraint(equalTo: topAnchor),
             toolbarView.bottomAnchor.constraint(equalTo: bottomAnchor),
             collectionView.leadingAnchor.constraint(equalTo: leadingAnchor),
