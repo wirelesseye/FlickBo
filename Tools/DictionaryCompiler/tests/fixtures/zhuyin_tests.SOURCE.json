@@ -1,8 +1,8 @@
 {
-  "repository": "https://example.invalid/flickzhuyin-tests",
+  "repository": "https://example.invalid/flickbo-tests",
   "commit": "0000000000000000000000000000000000000000",
   "dictionaryPath": "zhuyin_tests.dict.yaml",
-  "sha256": "b1551610c13e2577ad67c974b4742b2d86ecb8e803663294bf1a6d36429685a6",
+  "sha256": "744673c112c4909738e5789eb3670e88103541734240f4d5cbedc803ac52808f",
   "licensePath": "LICENSE",
   "licenseSha256": "e49073c7bf32784257f6fc1d6c97524cdaca3e9c5dec0ec3ee168adbcb32730e",
   "dictionaryVersion": "1.0",

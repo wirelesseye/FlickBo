@@ -3,8 +3,8 @@ import XCTest
 private let repositoryRoot = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent()
     .deletingLastPathComponent()
-private let productionOpenCCURL = repositoryRoot.appendingPathComponent("Generated/flickzhuyin.opencc")
-private let goldenURL = repositoryRoot.appendingPathComponent("FlickZhuyinTests/Fixtures/opencc-cases.tsv")
+private let productionOpenCCURL = repositoryRoot.appendingPathComponent("Generated/flickbo.opencc")
+private let goldenURL = repositoryRoot.appendingPathComponent("FlickBoTests/Fixtures/opencc-cases.tsv")
 
 final class OpenCCConverterTests: XCTestCase {
     func testMatchesGoldenConversionsFromCompiler() throws {
@@ -174,7 +174,7 @@ final class CharacterVariantProductionTests: XCTestCase {
     private let ruanti = [SyllableConstraint(base: "ㄖㄨㄢ"), SyllableConstraint(base: "ㄊㄧ")]
 
     func testTaiwanStoreRanksTaiwanVocabularyByTheWordItReplaces() throws {
-        let databaseURL = repositoryRoot.appendingPathComponent("Generated/flickzhuyin.sqlite3")
+        let databaseURL = repositoryRoot.appendingPathComponent("Generated/flickbo.sqlite3")
         try XCTSkipUnless(FileManager.default.fileExists(atPath: databaseURL.path), "production dictionary not built")
         let plain = try SQLiteLexiconStore(url: databaseURL)
         let taiwan = try SQLiteLexiconStore(url: databaseURL, usesTaiwanWeights: true)
@@ -205,7 +205,7 @@ final class CharacterVariantProductionTests: XCTestCase {
     }
 
     func testProductionLexiconPrefersRegionalForms() async throws {
-        let databaseURL = repositoryRoot.appendingPathComponent("Generated/flickzhuyin.sqlite3")
+        let databaseURL = repositoryRoot.appendingPathComponent("Generated/flickbo.sqlite3")
         try XCTSkipUnless(FileManager.default.fileExists(atPath: databaseURL.path), "production dictionary not built")
         let openCC = try MappedOpenCCStore(url: productionOpenCCURL)
         let input: [ZhuyinInputToken] = [
@@ -228,8 +228,8 @@ final class CharacterVariantProductionTests: XCTestCase {
     }
 
     func testTaiwanReadingOfShenmeTypesWeishenme() async throws {
-        let databaseURL = repositoryRoot.appendingPathComponent("Generated/flickzhuyin.sqlite3")
-        let grammarURL = repositoryRoot.appendingPathComponent("Generated/flickzhuyin.gram")
+        let databaseURL = repositoryRoot.appendingPathComponent("Generated/flickbo.sqlite3")
+        let grammarURL = repositoryRoot.appendingPathComponent("Generated/flickbo.gram")
         try XCTSkipUnless(FileManager.default.fileExists(atPath: databaseURL.path), "production dictionary not built")
         try XCTSkipUnless(FileManager.default.fileExists(atPath: grammarURL.path), "production grammar not built")
         let pipeline = try LexiconChineseInputPipeline(

@@ -7,14 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A00000000000000000000001 /* FlickZhuyinApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000001 /* FlickZhuyinApp.swift */; };
+		A00000000000000000000001 /* FlickBoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000001 /* FlickBoApp.swift */; };
 		A00000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000002 /* ContentView.swift */; };
 		A00000000000000000000003 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000003 /* KeyboardViewController.swift */; };
 		A00000000000000000000004 /* KeyboardButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000004 /* KeyboardButton.swift */; };
 		A00000000000000000000005 /* KeyboardKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000005 /* KeyboardKey.swift */; };
 		A00000000000000000000006 /* KeyboardLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000006 /* KeyboardLayout.swift */; };
 		A00000000000000000000007 /* KeyboardEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000007 /* KeyboardEngine.swift */; };
-		A00000000000000000000008 /* FlickZhuyinKeyboard.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B00000000000000000000009 /* FlickZhuyinKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A00000000000000000000008 /* FlickBoKeyboard.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B00000000000000000000009 /* FlickBoKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A00000000000000000000009 /* KeyboardEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000A /* KeyboardEngineTests.swift */; };
 		A0000000000000000000000A /* KeyboardKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000005 /* KeyboardKey.swift */; };
 		A0000000000000000000000B /* KeyboardLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000006 /* KeyboardLayout.swift */; };
@@ -40,8 +40,8 @@
 		A10000000000000000000018 /* WordLattice.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* WordLattice.swift */; };
 		A10000000000000000000020 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000B /* libsqlite3.tbd */; };
 		A10000000000000000000021 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000B /* libsqlite3.tbd */; };
-		A10000000000000000000022 /* flickzhuyin.sqlite3 in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* flickzhuyin.sqlite3 */; };
-		A10000000000000000000023 /* flickzhuyin-tests.sqlite3 in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* flickzhuyin-tests.sqlite3 */; };
+		A10000000000000000000022 /* flickbo.sqlite3 in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* flickbo.sqlite3 */; };
+		A10000000000000000000023 /* flickbo-tests.sqlite3 in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* flickbo-tests.sqlite3 */; };
 		A10000000000000000000024 /* ChineseInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000C /* ChineseInputTests.swift */; };
 		A10000000000000000000025 /* ProductionDictionaryIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000D /* ProductionDictionaryIntegrationTests.swift */; };
 		A10000000000000000000026 /* ChineseInputPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E /* ChineseInputPerformanceTests.swift */; };
@@ -64,8 +64,8 @@
 		A1000000000000000000004A /* GramStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000024 /* GramStore.swift */; };
 		A1000000000000000000004B /* Grammar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000025 /* Grammar.swift */; };
 		A1000000000000000000004C /* Grammar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000025 /* Grammar.swift */; };
-		A1000000000000000000004D /* flickzhuyin.gram in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000026 /* flickzhuyin.gram */; };
-		A1000000000000000000004E /* flickzhuyin-tests.gram in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000027 /* flickzhuyin-tests.gram */; };
+		A1000000000000000000004D /* flickbo.gram in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000026 /* flickbo.gram */; };
+		A1000000000000000000004E /* flickbo-tests.gram in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000027 /* flickbo-tests.gram */; };
 		A1000000000000000000004F /* GrammarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000028 /* GrammarTests.swift */; };
 		A10000000000000000000050 /* UserLearningStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000029 /* UserLearningStore.swift */; };
 		A10000000000000000000051 /* UserLearningStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000029 /* UserLearningStore.swift */; };
@@ -77,7 +77,7 @@
 		A10000000000000000000057 /* CharacterVariant.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002C /* CharacterVariant.swift */; };
 		A10000000000000000000058 /* CharacterVariant.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002C /* CharacterVariant.swift */; };
 		A10000000000000000000059 /* CharacterVariant.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002C /* CharacterVariant.swift */; };
-		A1000000000000000000005A /* flickzhuyin.opencc in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002D /* flickzhuyin.opencc */; };
+		A1000000000000000000005A /* flickbo.opencc in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002D /* flickbo.opencc */; };
 		A1000000000000000000005B /* OpenCCTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002E /* OpenCCTests.swift */; };
 		A1000000000000000000005C /* OpenCC-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002F /* OpenCC-LICENSE.txt */; };
 		A1000000000000000000005D /* OpenCC-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000002F /* OpenCC-LICENSE.txt */; };
@@ -100,6 +100,8 @@
 		A10000000000000000000046 /* KeyboardButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000004 /* KeyboardButton.swift */; };
 		A10000000000000000000047 /* CandidateBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000001D /* CandidateBarView.swift */; };
 		A10000000000000000000048 /* ExpandedCandidateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000020 /* ExpandedCandidateView.swift */; };
+		A20000000000000000000001 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* InfoPlist.strings */; };
+		A20000000000000000000002 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000002 /* InfoPlist.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -108,7 +110,7 @@
 			containerPortal = D00000000000000000000001 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = E00000000000000000000002;
-			remoteInfo = FlickZhuyinKeyboard;
+			remoteInfo = FlickBoKeyboard;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -119,7 +121,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				A00000000000000000000008 /* FlickZhuyinKeyboard.appex in Embed App Extensions */,
+				A00000000000000000000008 /* FlickBoKeyboard.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -127,7 +129,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		B00000000000000000000001 /* FlickZhuyinApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlickZhuyinApp.swift; sourceTree = "<group>"; };
+		B00000000000000000000001 /* FlickBoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlickBoApp.swift; sourceTree = "<group>"; };
 		B00000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B00000000000000000000003 /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
 		B00000000000000000000004 /* KeyboardButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardButton.swift; sourceTree = "<group>"; };
@@ -135,10 +137,10 @@
 		B00000000000000000000006 /* KeyboardLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLayout.swift; sourceTree = "<group>"; };
 		B00000000000000000000007 /* KeyboardEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardEngine.swift; sourceTree = "<group>"; };
 		B00000000000000000000008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		B00000000000000000000009 /* FlickZhuyinKeyboard.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FlickZhuyinKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000009 /* FlickBoKeyboard.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FlickBoKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B0000000000000000000000A /* KeyboardEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardEngineTests.swift; sourceTree = "<group>"; };
-		B0000000000000000000000B /* FlickZhuyin.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FlickZhuyin.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		B0000000000000000000000C /* FlickZhuyinTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FlickZhuyinTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B0000000000000000000000B /* FlickBo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FlickBo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B0000000000000000000000C /* FlickBoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FlickBoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B0000000000000000000000D /* FlickKeyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlickKeyButton.swift; sourceTree = "<group>"; };
 		B0000000000000000000000E /* ZhuyinLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZhuyinLayout.swift; sourceTree = "<group>"; };
 		B10000000000000000000001 /* MandarinTone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MandarinTone.swift; sourceTree = "<group>"; };
@@ -149,8 +151,8 @@
 		B10000000000000000000006 /* SQLiteLexiconStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteLexiconStore.swift; sourceTree = "<group>"; };
 		B10000000000000000000007 /* DictionaryMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionaryMatcher.swift; sourceTree = "<group>"; };
 		B10000000000000000000008 /* WordLattice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordLattice.swift; sourceTree = "<group>"; };
-		B10000000000000000000009 /* flickzhuyin.sqlite3 */ = {isa = PBXFileReference; lastKnownFileType = file; path = flickzhuyin.sqlite3; sourceTree = "<group>"; };
-		B1000000000000000000000A /* flickzhuyin-tests.sqlite3 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "flickzhuyin-tests.sqlite3"; sourceTree = "<group>"; };
+		B10000000000000000000009 /* flickbo.sqlite3 */ = {isa = PBXFileReference; lastKnownFileType = file; path = flickbo.sqlite3; sourceTree = "<group>"; };
+		B1000000000000000000000A /* flickbo-tests.sqlite3 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "flickbo-tests.sqlite3"; sourceTree = "<group>"; };
 		B1000000000000000000000B /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		B1000000000000000000000C /* ChineseInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChineseInputTests.swift; sourceTree = "<group>"; };
 		B1000000000000000000000D /* ProductionDictionaryIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductionDictionaryIntegrationTests.swift; sourceTree = "<group>"; };
@@ -166,14 +168,14 @@
 		B10000000000000000000017 /* DecoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecoderTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000024 /* GramStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GramStore.swift; sourceTree = "<group>"; };
 		B10000000000000000000025 /* Grammar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Grammar.swift; sourceTree = "<group>"; };
-		B10000000000000000000026 /* flickzhuyin.gram */ = {isa = PBXFileReference; lastKnownFileType = file; path = flickzhuyin.gram; sourceTree = "<group>"; };
-		B10000000000000000000027 /* flickzhuyin-tests.gram */ = {isa = PBXFileReference; lastKnownFileType = file; path = "flickzhuyin-tests.gram"; sourceTree = "<group>"; };
+		B10000000000000000000026 /* flickbo.gram */ = {isa = PBXFileReference; lastKnownFileType = file; path = flickbo.gram; sourceTree = "<group>"; };
+		B10000000000000000000027 /* flickbo-tests.gram */ = {isa = PBXFileReference; lastKnownFileType = file; path = "flickbo-tests.gram"; sourceTree = "<group>"; };
 		B10000000000000000000028 /* GrammarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrammarTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000029 /* UserLearningStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserLearningStore.swift; sourceTree = "<group>"; };
 		B1000000000000000000002A /* UserLexiconStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserLexiconStore.swift; sourceTree = "<group>"; };
 		B1000000000000000000002B /* OpenCC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCC.swift; sourceTree = "<group>"; };
 		B1000000000000000000002C /* CharacterVariant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterVariant.swift; sourceTree = "<group>"; };
-		B1000000000000000000002D /* flickzhuyin.opencc */ = {isa = PBXFileReference; lastKnownFileType = file; path = flickzhuyin.opencc; sourceTree = "<group>"; };
+		B1000000000000000000002D /* flickbo.opencc */ = {isa = PBXFileReference; lastKnownFileType = file; path = flickbo.opencc; sourceTree = "<group>"; };
 		B1000000000000000000002E /* OpenCCTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCCTests.swift; sourceTree = "<group>"; };
 		B1000000000000000000002F /* OpenCC-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = "OpenCC-LICENSE.txt"; path = "Vendor/opencc/OpenCC-LICENSE.txt"; sourceTree = SOURCE_ROOT; };
 		B10000000000000000000018 /* DecoderPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecoderPerformanceTests.swift; sourceTree = "<group>"; };
@@ -186,8 +188,12 @@
 		B1000000000000000000001F /* InlineCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineCompositionTests.swift; sourceTree = "<group>"; };
 		B10000000000000000000020 /* ExpandedCandidateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandedCandidateView.swift; sourceTree = "<group>"; };
 		B10000000000000000000021 /* KeyboardSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardSettings.swift; sourceTree = "<group>"; };
-		B10000000000000000000022 /* FlickZhuyin.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FlickZhuyin.entitlements; sourceTree = "<group>"; };
-		B10000000000000000000023 /* FlickZhuyinKeyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FlickZhuyinKeyboard.entitlements; sourceTree = "<group>"; };
+		B10000000000000000000022 /* FlickBo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FlickBo.entitlements; sourceTree = "<group>"; };
+		B10000000000000000000023 /* FlickBoKeyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FlickBoKeyboard.entitlements; sourceTree = "<group>"; };
+		B20000000000000000000001 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh-Hant; path = zh-Hant.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		B20000000000000000000002 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh-Hans; path = zh-Hans.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		B20000000000000000000003 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh-Hant; path = zh-Hant.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		B20000000000000000000004 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh-Hans; path = zh-Hans.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -220,10 +226,10 @@
 		D10000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
-				D10000000000000000000002 /* FlickZhuyinApp */,
-				D10000000000000000000003 /* FlickZhuyinKeyboard */,
+				D10000000000000000000002 /* FlickBoApp */,
+				D10000000000000000000003 /* FlickBoKeyboard */,
 				D10000000000000000000004 /* KeyboardCore */,
-				D10000000000000000000005 /* FlickZhuyinTests */,
+				D10000000000000000000005 /* FlickBoTests */,
 				D10000000000000000000008 /* Generated */,
 				D1000000000000000000000A /* Frameworks */,
 				D10000000000000000000006 /* Products */,
@@ -231,18 +237,19 @@
 			);
 			sourceTree = "<group>";
 		};
-		D10000000000000000000002 /* FlickZhuyinApp */ = {
+		D10000000000000000000002 /* FlickBoApp */ = {
 			isa = PBXGroup;
 			children = (
-				B00000000000000000000001 /* FlickZhuyinApp.swift */,
+				B00000000000000000000001 /* FlickBoApp.swift */,
 				B00000000000000000000002 /* ContentView.swift */,
 				B1000000000000000000000F /* ThirdPartyLicensesView.swift */,
-				B10000000000000000000022 /* FlickZhuyin.entitlements */,
+				B10000000000000000000022 /* FlickBo.entitlements */,
+				D20000000000000000000001 /* InfoPlist.strings */,
 			);
-			path = FlickZhuyinApp;
+			path = FlickBoApp;
 			sourceTree = "<group>";
 		};
-		D10000000000000000000003 /* FlickZhuyinKeyboard */ = {
+		D10000000000000000000003 /* FlickBoKeyboard */ = {
 			isa = PBXGroup;
 			children = (
 				B00000000000000000000003 /* KeyboardViewController.swift */,
@@ -253,9 +260,10 @@
 				B1000000000000000000001D /* CandidateBarView.swift */,
 				B10000000000000000000020 /* ExpandedCandidateView.swift */,
 				B1000000000000000000001E /* KeyboardDocumentClient.swift */,
-				B10000000000000000000023 /* FlickZhuyinKeyboard.entitlements */,
+				B10000000000000000000023 /* FlickBoKeyboard.entitlements */,
+				D20000000000000000000002 /* InfoPlist.strings */,
 			);
-			path = FlickZhuyinKeyboard;
+			path = FlickBoKeyboard;
 			sourceTree = "<group>";
 		};
 		D10000000000000000000004 /* KeyboardCore */ = {
@@ -273,7 +281,7 @@
 			path = KeyboardCore;
 			sourceTree = "<group>";
 		};
-		D10000000000000000000005 /* FlickZhuyinTests */ = {
+		D10000000000000000000005 /* FlickBoTests */ = {
 			isa = PBXGroup;
 			children = (
 				B0000000000000000000000A /* KeyboardEngineTests.swift */,
@@ -287,15 +295,15 @@
 				B1000000000000000000001F /* InlineCompositionTests.swift */,
 				D10000000000000000000009 /* Fixtures */,
 			);
-			path = FlickZhuyinTests;
+			path = FlickBoTests;
 			sourceTree = "<group>";
 		};
 		D10000000000000000000006 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				B0000000000000000000000B /* FlickZhuyin.app */,
-				B00000000000000000000009 /* FlickZhuyinKeyboard.appex */,
-				B0000000000000000000000C /* FlickZhuyinTests.xctest */,
+				B0000000000000000000000B /* FlickBo.app */,
+				B00000000000000000000009 /* FlickBoKeyboard.appex */,
+				B0000000000000000000000C /* FlickBoTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -329,9 +337,9 @@
 		D10000000000000000000008 /* Generated */ = {
 			isa = PBXGroup;
 			children = (
-				B10000000000000000000009 /* flickzhuyin.sqlite3 */,
-				B10000000000000000000026 /* flickzhuyin.gram */,
-				B1000000000000000000002D /* flickzhuyin.opencc */,
+				B10000000000000000000009 /* flickbo.sqlite3 */,
+				B10000000000000000000026 /* flickbo.gram */,
+				B1000000000000000000002D /* flickbo.opencc */,
 				B10000000000000000000012 /* LICENSE.md */,
 			);
 			path = Generated;
@@ -340,8 +348,8 @@
 		D10000000000000000000009 /* Fixtures */ = {
 			isa = PBXGroup;
 			children = (
-				B1000000000000000000000A /* flickzhuyin-tests.sqlite3 */,
-				B10000000000000000000027 /* flickzhuyin-tests.gram */,
+				B1000000000000000000000A /* flickbo-tests.sqlite3 */,
+				B10000000000000000000027 /* flickbo-tests.gram */,
 			);
 			path = Fixtures;
 			sourceTree = "<group>";
@@ -367,9 +375,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		E00000000000000000000001 /* FlickZhuyin */ = {
+		E00000000000000000000001 /* FlickBo */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = E10000000000000000000001 /* Build configuration list for PBXNativeTarget "FlickZhuyin" */;
+			buildConfigurationList = E10000000000000000000001 /* Build configuration list for PBXNativeTarget "FlickBo" */;
 			buildPhases = (
 				F20000000000000000000001 /* Sources */,
 				F10000000000000000000001 /* Frameworks */,
@@ -381,14 +389,14 @@
 			dependencies = (
 				E20000000000000000000001 /* PBXTargetDependency */,
 			);
-			name = FlickZhuyin;
-			productName = FlickZhuyin;
-			productReference = B0000000000000000000000B /* FlickZhuyin.app */;
+			name = FlickBo;
+			productName = FlickBo;
+			productReference = B0000000000000000000000B /* FlickBo.app */;
 			productType = "com.apple.product-type.application";
 		};
-		E00000000000000000000002 /* FlickZhuyinKeyboard */ = {
+		E00000000000000000000002 /* FlickBoKeyboard */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = E10000000000000000000002 /* Build configuration list for PBXNativeTarget "FlickZhuyinKeyboard" */;
+			buildConfigurationList = E10000000000000000000002 /* Build configuration list for PBXNativeTarget "FlickBoKeyboard" */;
 			buildPhases = (
 				F20000000000000000000002 /* Sources */,
 				F10000000000000000000002 /* Frameworks */,
@@ -398,14 +406,14 @@
 			);
 			dependencies = (
 			);
-			name = FlickZhuyinKeyboard;
-			productName = FlickZhuyinKeyboard;
-			productReference = B00000000000000000000009 /* FlickZhuyinKeyboard.appex */;
+			name = FlickBoKeyboard;
+			productName = FlickBoKeyboard;
+			productReference = B00000000000000000000009 /* FlickBoKeyboard.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-		E00000000000000000000003 /* FlickZhuyinTests */ = {
+		E00000000000000000000003 /* FlickBoTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = E10000000000000000000003 /* Build configuration list for PBXNativeTarget "FlickZhuyinTests" */;
+			buildConfigurationList = E10000000000000000000003 /* Build configuration list for PBXNativeTarget "FlickBoTests" */;
 			buildPhases = (
 				F20000000000000000000003 /* Sources */,
 				F10000000000000000000003 /* Frameworks */,
@@ -415,9 +423,9 @@
 			);
 			dependencies = (
 			);
-			name = FlickZhuyinTests;
-			productName = FlickZhuyinTests;
-			productReference = B0000000000000000000000C /* FlickZhuyinTests.xctest */;
+			name = FlickBoTests;
+			productName = FlickBoTests;
+			productReference = B0000000000000000000000C /* FlickBoTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -441,22 +449,24 @@
 					};
 				};
 			};
-			buildConfigurationList = E10000000000000000000004 /* Build configuration list for PBXProject "FlickZhuyin" */;
+			buildConfigurationList = E10000000000000000000004 /* Build configuration list for PBXProject "FlickBo" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
+				"zh-Hant",
+				"zh-Hans",
 			);
 			mainGroup = D10000000000000000000001;
 			productRefGroup = D10000000000000000000006 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				E00000000000000000000001 /* FlickZhuyin */,
-				E00000000000000000000002 /* FlickZhuyinKeyboard */,
-				E00000000000000000000003 /* FlickZhuyinTests */,
+				E00000000000000000000001 /* FlickBo */,
+				E00000000000000000000002 /* FlickBoKeyboard */,
+				E00000000000000000000003 /* FlickBoTests */,
 			);
 		};
 /* End PBXProject section */
@@ -469,6 +479,7 @@
 				A10000000000000000000028 /* THIRD_PARTY_NOTICES.md in Resources */,
 				A1000000000000000000002A /* Rime-LGPL-3.0.txt in Resources */,
 				A1000000000000000000005C /* OpenCC-LICENSE.txt in Resources */,
+				A20000000000000000000001 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -476,13 +487,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A10000000000000000000022 /* flickzhuyin.sqlite3 in Resources */,
-				A1000000000000000000004D /* flickzhuyin.gram in Resources */,
-				A1000000000000000000005A /* flickzhuyin.opencc in Resources */,
+				A10000000000000000000022 /* flickbo.sqlite3 in Resources */,
+				A1000000000000000000004D /* flickbo.gram in Resources */,
+				A1000000000000000000005A /* flickbo.opencc in Resources */,
 				A10000000000000000000029 /* THIRD_PARTY_NOTICES.md in Resources */,
 				A1000000000000000000002B /* Rime-LGPL-3.0.txt in Resources */,
 				A1000000000000000000005D /* OpenCC-LICENSE.txt in Resources */,
 				A1000000000000000000002C /* LICENSE.md in Resources */,
+				A20000000000000000000002 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -490,8 +502,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A10000000000000000000023 /* flickzhuyin-tests.sqlite3 in Resources */,
-				A1000000000000000000004E /* flickzhuyin-tests.gram in Resources */,
+				A10000000000000000000023 /* flickbo-tests.sqlite3 in Resources */,
+				A1000000000000000000004E /* flickbo-tests.gram in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -502,7 +514,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A00000000000000000000001 /* FlickZhuyinApp.swift in Sources */,
+				A00000000000000000000001 /* FlickBoApp.swift in Sources */,
 				A00000000000000000000002 /* ContentView.swift in Sources */,
 				A10000000000000000000027 /* ThirdPartyLicensesView.swift in Sources */,
 				A10000000000000000000044 /* KeyboardSettings.swift in Sources */,
@@ -602,10 +614,31 @@
 /* Begin PBXTargetDependency section */
 		E20000000000000000000001 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = E00000000000000000000002 /* FlickZhuyinKeyboard */;
+			target = E00000000000000000000002 /* FlickBoKeyboard */;
 			targetProxy = C00000000000000000000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		D20000000000000000000001 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				B20000000000000000000001 /* zh-Hant */,
+				B20000000000000000000002 /* zh-Hans */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+		D20000000000000000000002 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				B20000000000000000000003 /* zh-Hant */,
+				B20000000000000000000004 /* zh-Hans */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		C10000000000000000000001 /* Debug */ = {
@@ -650,18 +683,18 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = FlickZhuyinApp/FlickZhuyin.entitlements;
+				CODE_SIGN_ENTITLEMENTS = FlickBoApp/FlickBo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 794A5QCL7Y;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = FlickZhuyinApp/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = FlickZhuyin;
+				INFOPLIST_FILE = FlickBoApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FlickBo;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.wirelesseye.FlickZhuyin;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wirelesseye.FlickBo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -673,18 +706,18 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = FlickZhuyinApp/FlickZhuyin.entitlements;
+				CODE_SIGN_ENTITLEMENTS = FlickBoApp/FlickBo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 794A5QCL7Y;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = FlickZhuyinApp/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = FlickZhuyin;
+				INFOPLIST_FILE = FlickBoApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FlickBo;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.wirelesseye.FlickZhuyin;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wirelesseye.FlickBo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -696,14 +729,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = FlickZhuyinKeyboard/FlickZhuyinKeyboard.entitlements;
+				CODE_SIGN_ENTITLEMENTS = FlickBoKeyboard/FlickBoKeyboard.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 794A5QCL7Y;
-				INFOPLIST_FILE = FlickZhuyinKeyboard/Info.plist;
+				INFOPLIST_FILE = FlickBoKeyboard/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.wirelesseye.FlickZhuyin.Keyboard;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wirelesseye.FlickBo.Keyboard;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
@@ -715,14 +748,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = FlickZhuyinKeyboard/FlickZhuyinKeyboard.entitlements;
+				CODE_SIGN_ENTITLEMENTS = FlickBoKeyboard/FlickBoKeyboard.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 794A5QCL7Y;
-				INFOPLIST_FILE = FlickZhuyinKeyboard/Info.plist;
+				INFOPLIST_FILE = FlickBoKeyboard/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.wirelesseye.FlickZhuyin.Keyboard;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wirelesseye.FlickBo.Keyboard;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
@@ -738,7 +771,7 @@
 				DEVELOPMENT_TEAM = 794A5QCL7Y;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.wirelesseye.FlickZhuyinTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wirelesseye.FlickBoTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -754,7 +787,7 @@
 				DEVELOPMENT_TEAM = 794A5QCL7Y;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.wirelesseye.FlickZhuyinTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wirelesseye.FlickBoTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -765,7 +798,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		E10000000000000000000001 /* Build configuration list for PBXNativeTarget "FlickZhuyin" */ = {
+		E10000000000000000000001 /* Build configuration list for PBXNativeTarget "FlickBo" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C10000000000000000000003 /* Debug */,
@@ -774,7 +807,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E10000000000000000000002 /* Build configuration list for PBXNativeTarget "FlickZhuyinKeyboard" */ = {
+		E10000000000000000000002 /* Build configuration list for PBXNativeTarget "FlickBoKeyboard" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C10000000000000000000005 /* Debug */,
@@ -783,7 +816,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E10000000000000000000003 /* Build configuration list for PBXNativeTarget "FlickZhuyinTests" */ = {
+		E10000000000000000000003 /* Build configuration list for PBXNativeTarget "FlickBoTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C10000000000000000000007 /* Debug */,
@@ -792,7 +825,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E10000000000000000000004 /* Build configuration list for PBXProject "FlickZhuyin" */ = {
+		E10000000000000000000004 /* Build configuration list for PBXProject "FlickBo" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C10000000000000000000001 /* Debug */,

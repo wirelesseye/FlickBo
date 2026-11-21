@@ -1,6 +1,6 @@
-# FlickZhuyin
+# FlickBo 滑注音
 
-FlickZhuyin 是一個實驗性的 iOS 自訂注音鍵盤，在九宮格上以類似日文假名鍵盤的 Flick（滑動）操作輸入注音符號。
+FlickBo（滑注音）是一個實驗性的 iOS 自訂注音鍵盤，在九宮格上以類似日文假名鍵盤的 Flick（滑動）操作輸入注音符號。
 
 中文模式已支援注音組字、候選選字、Inline 顯示與本機使用者詞典，並可與數字模式及全鍵盤 ABC 模式切換；候選排序結合詞頻、選字次數與 n-gram 語言模型（rime-octagram），尚未提供自動選字與 iPad 專用版面，詳見「尚未支援」。
 
@@ -12,10 +12,10 @@ FlickZhuyin 是一個實驗性的 iOS 自訂注音鍵盤，在九宮格上以類
 
 ## 安裝與啟用
 
-1. 以 Xcode 開啟 `FlickZhuyin.xcodeproj`，在 `FlickZhuyin` 與 `FlickZhuyinKeyboard` targets 選擇 Development Team，並將 `FlickZhuyin` App 執行到模擬器或實機。
-2. 開啟 iOS「設定」→「一般」→「鍵盤」→「鍵盤」→「新增鍵盤」，選擇 FlickZhuyin。
-3. 返回鍵盤列表，點選 FlickZhuyin，開啟「允許完整取用」並確認授權。記憶選字需要此權限才能寫入使用者詞典，觸覺回饋也需要它；未開啟時鍵盤仍可輸入。
-4. 在文字欄中以地球鍵切換至 FlickZhuyin。
+1. 以 Xcode 開啟 `FlickBo.xcodeproj`，在 `FlickBo` 與 `FlickBoKeyboard` targets 選擇 Development Team，並將 `FlickBo` App 執行到模擬器或實機。
+2. 開啟 iOS「設定」→「一般」→「鍵盤」→「鍵盤」→「新增鍵盤」，選擇「滑注音」（非中文系統顯示為「FlickBo」）。
+3. 返回鍵盤列表，點選「滑注音」，開啟「允許完整取用」並確認授權。記憶選字需要此權限才能寫入使用者詞典，觸覺回饋也需要它；未開啟時鍵盤仍可輸入。
+4. 在文字欄中以地球鍵切換至「滑注音」。
 
 容器 App 提供測試文字欄、鍵盤設定與「第三方授權」。
 
@@ -159,7 +159,7 @@ FlickZhuyin 是一個實驗性的 iOS 自訂注音鍵盤，在九宮格上以類
 
 ## 設定
 
-在 FlickZhuyin App 中可調整：
+在 FlickBo App 中可調整：
 
 - **字形**（預設臺灣）：候選與後續建議的字形。也可以在沒有輸入時點按鍵盤工具列的字形圖示，從選單切換，立即生效並與 App 設定同步。
   - 臺灣：例如「為什麼」「裡面」；臺灣用詞以對應大陸用詞的詞頻排序（「軟體」沿用「軟件」、「程式碼」沿用「代碼」），詞庫缺少的臺灣用詞（例如「中介軟體」）也可輸入。各詞維持自己的讀音，打 `ㄖㄨㄢˇㄐㄧㄢˋ` 只會出現「軟件」。
@@ -174,7 +174,7 @@ FlickZhuyin 是一個實驗性的 iOS 自訂注音鍵盤，在九宮格上以類
 
 ## 隱私
 
-FlickZhuyin Keyboard Extension：
+FlickBo Keyboard Extension：
 
 - 為記憶選字及觸覺回饋要求 Full Access；未授權時不寫入學習資料
 - 不使用網路
@@ -184,7 +184,7 @@ FlickZhuyin Keyboard Extension：
 - App Group 共享容器存放偏好設定與使用者詞典；不記錄任意文字欄內容或語言模型上下文
 - 不使用雲端同步
 
-開啟 Full Access 會解除 iOS 對第三方鍵盤的部分系統限制。FlickZhuyin 只用它在本機記憶已提交的選字及提供觸覺回饋，不會連網或上傳輸入內容。
+開啟 Full Access 會解除 iOS 對第三方鍵盤的部分系統限制。FlickBo 只用它在本機記憶已提交的選字及提供觸覺回饋，不會連網或上傳輸入內容。
 
 ## 第三方資料與授權
 
@@ -195,7 +195,7 @@ FlickZhuyin Keyboard Extension：
 - rime-octagram-data 的 n-gram 語言模型依 LGPL-3.0 提供
 - 地區字形與用詞轉換使用 OpenCC 的字典，依 Apache-2.0 提供
 
-完整 attribution、修改說明與授權連結見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)，App 內也可從「第三方授權」閱讀。FlickZhuyin 自有程式碼目前未授予開源授權。
+完整 attribution、修改說明與授權連結見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)，App 內也可從「第三方授權」閱讀。FlickBo 自有程式碼目前未授予開源授權。
 
 ## 尚未支援
 

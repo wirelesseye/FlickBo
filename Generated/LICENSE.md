@@ -1,10 +1,10 @@
 # 詞典與語言模型資料授權
 
-本文件涵蓋 `flickzhuyin.sqlite3`、`flickzhuyin.gram` 與 `flickzhuyin.opencc`。
+本文件涵蓋 `flickbo.sqlite3`、`flickbo.gram` 與 `flickbo.opencc`。
 
-## flickzhuyin.sqlite3
+## flickbo.sqlite3
 
-`flickzhuyin.sqlite3` 同時衍生自兩份上游資料：
+`flickbo.sqlite3` 同時衍生自兩份上游資料：
 
 ### Rime Terra Pinyin
 
@@ -21,7 +21,7 @@
 - 上游 repository 授權：GNU LGPL v3.0
 - 授權：<https://www.gnu.org/licenses/lgpl-3.0.html>
 
-Terra 部分提供字音、多音字與明確詞條，依 CC BY-SA 3.0 提供；Essay 部分提供常用詞與詞頻，依 LGPL-3.0 提供。轉換包括拼音至注音轉換、離線自動標音、詞頻正規化、去重、欄位正規化、完整讀音與聲母（initial）索引建立及 SQLite 封裝。## flickzhuyin.gram
+Terra 部分提供字音、多音字與明確詞條，依 CC BY-SA 3.0 提供；Essay 部分提供常用詞與詞頻，依 LGPL-3.0 提供。轉換包括拼音至注音轉換、離線自動標音、詞頻正規化、去重、欄位正規化、完整讀音與聲母（initial）索引建立及 SQLite 封裝。## flickbo.gram
 
 - 上游：<https://github.com/lotem/rime-octagram-data>（`hant` 分支，`zh-hant-t-essay-bgw.gram`）
 - Commit：`97bf55046aad163c3d1881abae5312040b1bbed9`
@@ -33,7 +33,7 @@ Terra 部分提供字音、多音字與明確詞條，依 CC BY-SA 3.0 提供；
 
 此資料不附帶任何擔保。
 
-## flickzhuyin.opencc
+## flickbo.opencc
 
 - 上游：<https://github.com/BYVoid/OpenCC>（`ver.1.4.2`，`data/dictionary/`）
 - Commit：`025f371dc76b598d77384fbdab90c937471844d8`

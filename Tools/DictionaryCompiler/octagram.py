@@ -1,4 +1,4 @@
-"""Read librime-octagram `.gram` files and write FlickZhuyin's FZGram format.
+"""Read librime-octagram `.gram` files and write FlickBo's FZGram format.
 
 The upstream file is a darts-clone double-array trie behind a small header
 (see librime-octagram src/gram_db.cc). Keys are stored in octagram's compact

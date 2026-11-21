@@ -28,7 +28,7 @@ final class DecoderPerformanceTests: XCTestCase {
     }
 
     private var databaseURL: URL {
-        repositoryRoot.appendingPathComponent("Generated/flickzhuyin.sqlite3")
+        repositoryRoot.appendingPathComponent("Generated/flickbo.sqlite3")
     }
 
     func testTenTokenTopKDecodeLatency() throws {
@@ -63,10 +63,10 @@ final class DecoderPerformanceTests: XCTestCase {
     }
 
     func testTenTokenGrammarDecodeLatency() throws {
-        let grammarURL = repositoryRoot.appendingPathComponent("Generated/flickzhuyin.gram")
+        let grammarURL = repositoryRoot.appendingPathComponent("Generated/flickbo.gram")
         try XCTSkipUnless(
             FileManager.default.fileExists(atPath: grammarURL.path),
-            "run build-grammar to generate Generated/flickzhuyin.gram"
+            "run build-grammar to generate Generated/flickbo.gram"
         )
         let store = try SQLiteLexiconStore(url: databaseURL)
         let parser = try SyllableParser(store: store)

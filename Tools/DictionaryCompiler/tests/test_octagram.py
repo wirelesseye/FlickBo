@@ -23,10 +23,10 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 REPOSITORY = Path(__file__).resolve().parents[3]
 FIXTURE_TEXT = FIXTURES / "octagram_tests.txt"
 FIXTURE_BLOCK_SIZE = 4
-COMMITTED_SWIFT_FIXTURE = REPOSITORY / "FlickZhuyinTests" / "Fixtures" / "flickzhuyin-tests.gram"
+COMMITTED_SWIFT_FIXTURE = REPOSITORY / "FlickBoTests" / "Fixtures" / "flickbo-tests.gram"
 PRODUCTION_SOURCE = REPOSITORY / "Vendor" / "rime-octagram-data" / "zh-hant-t-essay-bgw.gram"
 PRODUCTION_MANIFEST = REPOSITORY / "Vendor" / "rime-octagram-data" / "SOURCE.json"
-PRODUCTION_GRAMMAR = REPOSITORY / "Generated" / "flickzhuyin.gram"
+PRODUCTION_GRAMMAR = REPOSITORY / "Generated" / "flickbo.gram"
 PRODUCTION_REPORT = REPOSITORY / "Generated" / "grammar-report.json"
 
 
@@ -188,7 +188,7 @@ class BuildGrammarTests(unittest.TestCase):
         )
         self.assertEqual(code, 0)
         if not COMMITTED_SWIFT_FIXTURE.exists():
-            self.fail("run the grammar fixture build command to generate FlickZhuyinTests/Fixtures/flickzhuyin-tests.gram")
+            self.fail("run the grammar fixture build command to generate FlickBoTests/Fixtures/flickbo-tests.gram")
         self.assertEqual(output.read_bytes(), COMMITTED_SWIFT_FIXTURE.read_bytes())
 
 

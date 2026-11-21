@@ -32,7 +32,7 @@ final class MappedOpenCCStore: @unchecked Sendable {
 
     convenience init(
         bundle: Bundle,
-        resourceName: String = "flickzhuyin",
+        resourceName: String = "flickbo",
         resourceExtension: String = "opencc"
     ) throws {
         guard let url = bundle.url(forResource: resourceName, withExtension: resourceExtension) else {

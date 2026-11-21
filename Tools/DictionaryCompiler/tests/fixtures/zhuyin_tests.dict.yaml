@@ -1,4 +1,4 @@
-# Test dictionary for FlickZhuyin unit tests.
+# Test dictionary for FlickBo unit tests.
 # The generated SQLite fixture must stay in sync with this file.
 ---
 name: zhuyin_tests

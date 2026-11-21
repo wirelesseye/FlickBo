@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct FlickZhuyinApp: App {
+struct FlickBoApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()

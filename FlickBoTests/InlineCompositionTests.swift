@@ -398,7 +398,7 @@ final class ChineseInputPipelineTests: ChineseInputTestCase {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("Generated/flickzhuyin.sqlite3")
+            .appendingPathComponent("Generated/flickbo.sqlite3")
     }
 
     private func tonedTokens() -> [ZhuyinInputToken] {

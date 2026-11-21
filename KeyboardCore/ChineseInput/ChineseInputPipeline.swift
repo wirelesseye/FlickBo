@@ -28,13 +28,13 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
     private let userLearningStore: UserLearningStore?
     private let textConverter: CandidateTextConverter
     private let queue = DispatchQueue(
-        label: "com.wirelesseye.FlickZhuyin.ChineseInputPipeline",
+        label: "com.wirelesseye.FlickBo.ChineseInputPipeline",
         qos: .userInitiated
     )
 
     convenience init(
         bundle: Bundle,
-        resourceName: String = "flickzhuyin",
+        resourceName: String = "flickbo",
         resourceExtension: String = "sqlite3",
         grammarResourceExtension: String? = "gram",
         decoder: Decoder = Decoder(),
@@ -63,7 +63,7 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
                 )
             } catch {
                 // Ranking without a grammar is still usable; keep typing working.
-                Logger(subsystem: "com.wirelesseye.FlickZhuyin", category: "ChineseInput")
+                Logger(subsystem: "com.wirelesseye.FlickBo", category: "ChineseInput")
                     .error("grammar unavailable: \(String(describing: error), privacy: .public)")
             }
         }
@@ -78,7 +78,7 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
                 textConverter = try CandidateTextConverter(variant: characterVariant, store: openCC)
             } catch {
                 // Candidates in the lexicon's own form are still usable.
-                Logger(subsystem: "com.wirelesseye.FlickZhuyin", category: "ChineseInput")
+                Logger(subsystem: "com.wirelesseye.FlickBo", category: "ChineseInput")
                     .error("character conversion unavailable: \(String(describing: error), privacy: .public)")
             }
         }

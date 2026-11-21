@@ -116,7 +116,7 @@ final class ChineseInputCoordinator {
                     fullySelected: fullySelected
                 )
             } catch {
-                Logger(subsystem: "com.wirelesseye.FlickZhuyin", category: "ChineseInput")
+                Logger(subsystem: "com.wirelesseye.FlickBo", category: "ChineseInput")
                     .error("learning write failed: \(String(describing: error), privacy: .public)")
             }
         }
@@ -223,7 +223,7 @@ final class ChineseInputCoordinator {
     }
 
     private func logFailure(_ failure: ChineseInputFailure) {
-        Logger(subsystem: "com.wirelesseye.FlickZhuyin", category: "ChineseInput")
+        Logger(subsystem: "com.wirelesseye.FlickBo", category: "ChineseInput")
             .debug("candidate request failed: \(String(describing: failure), privacy: .public)")
     }
 

@@ -5,7 +5,7 @@ project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 build_dir="$project_dir/build"
 
 if [[ "${1:-}" == -h || "${1:-}" == --help ]]; then
-    printf 'Usage: %s [output.ipa]\nDefault output: %s/FlickZhuyin-SideStore.ipa\n' "$0" "$build_dir"
+    printf 'Usage: %s [output.ipa]\nDefault output: %s/FlickBo-SideStore.ipa\n' "$0" "$build_dir"
     exit 0
 fi
 if (( $# > 1 )) || [[ $# == 1 && "$1" != *.ipa ]]; then
@@ -13,11 +13,11 @@ if (( $# > 1 )) || [[ $# == 1 && "$1" != *.ipa ]]; then
     exit 2
 fi
 
-output="${1:-$build_dir/FlickZhuyin-SideStore.ipa}"
+output="${1:-$build_dir/FlickBo-SideStore.ipa}"
 output_dir="$(dirname -- "$output")"
 output_name="$(basename -- "$output")"
 
-for resource in flickzhuyin.sqlite3 flickzhuyin.gram; do
+for resource in flickbo.sqlite3 flickbo.gram; do
     if [[ ! -s "$project_dir/Generated/$resource" ]]; then
         printf 'Missing Generated/%s. See DEVELOPMENT.md for build instructions.\n' "$resource" >&2
         exit 1
@@ -31,13 +31,13 @@ if [[ -d "$output" ]]; then
     printf 'Output path is a directory: %s\n' "$output" >&2
     exit 1
 fi
-staging_dir="$(mktemp -d "$output_dir/.flickzhuyin-ipa.XXXXXX")"
+staging_dir="$(mktemp -d "$output_dir/.flickbo-ipa.XXXXXX")"
 trap 'rm -rf -- "$staging_dir"' EXIT
 
 derived_data="$build_dir/DerivedData"
 xcodebuild \
-    -project "$project_dir/FlickZhuyin.xcodeproj" \
-    -scheme FlickZhuyin \
+    -project "$project_dir/FlickBo.xcodeproj" \
+    -scheme FlickBo \
     -configuration Release \
     -destination 'generic/platform=iOS' \
     -derivedDataPath "$derived_data" \
@@ -45,20 +45,20 @@ xcodebuild \
     build
 
 mkdir "$staging_dir/Payload"
-app="$staging_dir/Payload/FlickZhuyin.app"
-keyboard="$app/PlugIns/FlickZhuyinKeyboard.appex"
-ditto "$derived_data/Build/Products/Release-iphoneos/FlickZhuyin.app" "$app"
+app="$staging_dir/Payload/FlickBo.app"
+keyboard="$app/PlugIns/FlickBoKeyboard.appex"
+ditto "$derived_data/Build/Products/Release-iphoneos/FlickBo.app" "$app"
 
 # Embed the App Group entitlements so SideStore can read them before re-signing.
-codesign --force --sign - --entitlements "$project_dir/FlickZhuyinKeyboard/FlickZhuyinKeyboard.entitlements" "$keyboard"
-codesign --force --sign - --entitlements "$project_dir/FlickZhuyinApp/FlickZhuyin.entitlements" "$app"
+codesign --force --sign - --entitlements "$project_dir/FlickBoKeyboard/FlickBoKeyboard.entitlements" "$keyboard"
+codesign --force --sign - --entitlements "$project_dir/FlickBoApp/FlickBo.entitlements" "$app"
 codesign --verify --deep --strict "$app"
 
 (
     cd "$staging_dir"
-    zip -q -r FlickZhuyin.ipa Payload
-    unzip -tq FlickZhuyin.ipa
+    zip -q -r FlickBo.ipa Payload
+    unzip -tq FlickBo.ipa
 )
 
-mv -f -- "$staging_dir/FlickZhuyin.ipa" "$output"
+mv -f -- "$staging_dir/FlickBo.ipa" "$output"
 printf 'SideStore IPA: %s\n' "$output"

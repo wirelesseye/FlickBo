@@ -2,8 +2,8 @@ import Foundation
 import OSLog
 
 enum KeyboardSettings {
-    private static let logger = Logger(subsystem: "com.wirelesseye.FlickZhuyin", category: "AppGroup")
-    private static let originalBundleIdentifier = "com.wirelesseye.FlickZhuyin"
+    private static let logger = Logger(subsystem: "com.wirelesseye.FlickBo", category: "AppGroup")
+    private static let originalBundleIdentifier = "com.wirelesseye.FlickBo"
     private static let originalAppGroup = "group." + originalBundleIdentifier
     static let showsDirectionalSymbolsKey = "showsDirectionalSymbols"
     static let autoCommitCompositionKey = "autoCommitComposition"

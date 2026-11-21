@@ -680,7 +680,7 @@ final class DecoderProductionIntegrationTests: XCTestCase {
     }
 
     private var databaseURL: URL {
-        repositoryRoot.appendingPathComponent("Generated/flickzhuyin.sqlite3")
+        repositoryRoot.appendingPathComponent("Generated/flickbo.sqlite3")
     }
 
     private func decode(

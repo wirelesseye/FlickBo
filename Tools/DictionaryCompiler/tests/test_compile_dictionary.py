@@ -26,7 +26,7 @@ PRODUCTION_TERRA_SOURCE = REPOSITORY / "Vendor" / "rime-terra-pinyin" / "terra_p
 PRODUCTION_TERRA_MANIFEST = REPOSITORY / "Vendor" / "rime-terra-pinyin" / "SOURCE.json"
 PRODUCTION_ESSAY_SOURCE = REPOSITORY / "Vendor" / "rime-essay" / "essay.txt"
 PRODUCTION_ESSAY_MANIFEST = REPOSITORY / "Vendor" / "rime-essay" / "SOURCE.json"
-PRODUCTION_DATABASE = REPOSITORY / "Generated" / "flickzhuyin.sqlite3"
+PRODUCTION_DATABASE = REPOSITORY / "Generated" / "flickbo.sqlite3"
 PRODUCTION_REPORT = REPOSITORY / "Generated" / "dictionary-report.json"
 PRODUCTION_OPENCC = REPOSITORY / "Vendor" / "opencc"
 
@@ -885,7 +885,7 @@ class FixtureTests(CompilerTestCase):
         fixture_manifest = FIXTURES / "zhuyin_tests.SOURCE.json"
         fixture_essay = FIXTURES / "zhuyin_tests.essay.txt"
         fixture_essay_manifest = FIXTURES / "zhuyin_tests.essay.SOURCE.json"
-        committed = REPOSITORY / "FlickZhuyinTests" / "Fixtures" / "flickzhuyin-tests.sqlite3"
+        committed = REPOSITORY / "FlickBoTests" / "Fixtures" / "flickbo-tests.sqlite3"
         output = self.directory / "fixture.sqlite3"
         build_database(
             fixture_source,
@@ -896,7 +896,7 @@ class FixtureTests(CompilerTestCase):
             self.directory / "fixture.json",
         )
         if not committed.exists():
-            self.fail("run the fixture build command to generate FlickZhuyinTests/Fixtures/flickzhuyin-tests.sqlite3")
+            self.fail("run the fixture build command to generate FlickBoTests/Fixtures/flickbo-tests.sqlite3")
         self.assertEqual(self.database_snapshot(output), self.database_snapshot(committed))
 
 

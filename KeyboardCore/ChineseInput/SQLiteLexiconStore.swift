@@ -25,7 +25,7 @@ final class SQLiteLexiconStore: LexiconStore, @unchecked Sendable {
         "weight_normalization",
     ]
 
-    private let queue = DispatchQueue(label: "com.wirelesseye.FlickZhuyin.SQLiteLexiconStore")
+    private let queue = DispatchQueue(label: "com.wirelesseye.FlickBo.SQLiteLexiconStore")
     private let database: OpaquePointer
     private let exactStatement: OpaquePointer
     private let patternStatement: OpaquePointer
@@ -102,7 +102,7 @@ final class SQLiteLexiconStore: LexiconStore, @unchecked Sendable {
 
     convenience init(
         bundle: Bundle,
-        resourceName: String = "flickzhuyin",
+        resourceName: String = "flickbo",
         resourceExtension: String = "sqlite3",
         cacheCapacity: Int = SQLiteLexiconStore.defaultCacheCapacity,
         usesTaiwanWeights: Bool = false

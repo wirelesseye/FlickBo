@@ -26,8 +26,8 @@ from opencc_data import (  # noqa: E402
 REPOSITORY = Path(__file__).resolve().parents[3]
 SOURCE = REPOSITORY / "Vendor" / "opencc"
 MANIFEST = SOURCE / "SOURCE.json"
-PRODUCTION_OUTPUT = REPOSITORY / "Generated" / "flickzhuyin.opencc"
-SWIFT_GOLDEN = REPOSITORY / "FlickZhuyinTests" / "Fixtures" / "opencc-cases.tsv"
+PRODUCTION_OUTPUT = REPOSITORY / "Generated" / "flickbo.opencc"
+SWIFT_GOLDEN = REPOSITORY / "FlickBoTests" / "Fixtures" / "opencc-cases.tsv"
 
 
 class ParsingTests(unittest.TestCase):
@@ -114,7 +114,7 @@ class UpstreamCaseTests(unittest.TestCase):
 class ProductionArtifactTests(unittest.TestCase):
     def test_committed_artifacts_match_vendored_sources(self):
         with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "flickzhuyin.opencc"
+            output = Path(directory) / "flickbo.opencc"
             golden = Path(directory) / "opencc-cases.tsv"
             build_opencc(SOURCE, MANIFEST, output, golden)
             self.assertEqual(output.read_bytes(), PRODUCTION_OUTPUT.read_bytes())

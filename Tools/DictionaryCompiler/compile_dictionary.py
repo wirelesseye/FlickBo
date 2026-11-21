@@ -2062,7 +2062,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     build_opencc_parser.add_argument("--source-dir", default="Vendor/opencc")
     build_opencc_parser.add_argument("--manifest", default="Vendor/opencc/SOURCE.json")
-    build_opencc_parser.add_argument("--output", default="Generated/flickzhuyin.opencc")
+    build_opencc_parser.add_argument("--output", default="Generated/flickbo.opencc")
     build_opencc_parser.add_argument(
         "--golden", help="also write conversion<TAB>input<TAB>expected rows for the Swift tests"
     )

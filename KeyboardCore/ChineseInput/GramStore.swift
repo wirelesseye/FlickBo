@@ -44,7 +44,7 @@ final class MappedGramStore: @unchecked Sendable {
 
     convenience init(
         bundle: Bundle,
-        resourceName: String = "flickzhuyin",
+        resourceName: String = "flickbo",
         resourceExtension: String = "gram"
     ) throws {
         guard let url = bundle.url(forResource: resourceName, withExtension: resourceExtension) else {

@@ -1,15 +1,15 @@
-# FlickZhuyin 開發文件
+# FlickBo（滑注音）開發文件
 
 本文件面向開發者，說明專案結構、架構、建置測試與詞典編譯流程。使用者操作說明請見 [README.md](README.md)，第三方授權細節請見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 專案結構
 
 ```text
-FlickZhuyinApp/                SwiftUI 容器 App、設定與測試文字欄
-FlickZhuyinKeyboard/           UIKit Keyboard Extension、按鍵與 Flick UI
+FlickBoApp/                    SwiftUI 容器 App、設定與測試文字欄
+FlickBoKeyboard/               UIKit Keyboard Extension、按鍵與 Flick UI
 KeyboardCore/                  鍵盤狀態機、按鍵模型及注音配置
 KeyboardCore/ChineseInput/     音節解析、詞庫查詢、詞格與 Top-K 解碼
-FlickZhuyinTests/              狀態機、Flick 映射、中文輸入與效能測試
+FlickBoTests/                  狀態機、Flick 映射、中文輸入與效能測試
 Tools/DictionaryCompiler/      Rime 詞典與語言模型離線編譯器與 Python 測試
 Vendor/rime-terra-pinyin/      鎖定版本的上游詞典、授權與 manifest
 Vendor/rime-essay/             鎖定版本的上游預設詞彙、授權與 manifest
@@ -31,10 +31,10 @@ Generated/                     編譯產物（SQLite 詞典、FZGram 語言模�
 - `UserLearningStore` 在 App Group 的獨立 SQLite 資料庫保存選字次數與 2–8 字新詞；`CombinedLexiconStore` 合併內建及使用者詞條，`UserFrequencyScorer` 對提交至少兩次的詞給予上限 2.5 的成本減免。Extension 無 Full Access 時只嘗試唯讀開啟，資料庫不可用時維持內建詞庫輸入；App 可清除資料，鍵盤查詢時以 SQLite `data_version` 更新計數快照。
 - `DictionaryMatcher` 沿音節格以統一的 pattern expansion 查詢詞庫：完整 edge 產生 `.exact`、單符號無調 edge 產生 `.initial`，同一位置可同時保留兩種解讀，全部 exact 時仍走快速 `exactMatches`；pattern 與查詢結果都會記憶化，混合查詢受 `patternMatchResultLimit`／`patternMatchScanLimit` 限制。
 - `Decoder` 將詞格與 raw 注音音節合併成永遠連通的解碼圖；沒有詞典匹配的片段會以原始注音保留。沒有語言模型時以精確 Top-K DAG 動態規劃輸出穩定排序的候選；有語言模型時改用 librime `Poet` 式的前向 beam search：每個詞以前兩個詞（第一個詞則以游標前文字）為上下文查詢語言模型，每個位置只保留 `beamWidth`（預設 5）個分數最佳且 text／讀音／上下文互異的部分句子，另保留 `frequentWordReserve`（預設 1）個最後一個詞 Essay 詞頻最高的部分句子；raw 注音音節不計語言模型分數並清空上下文。保留名額是因為高頻多音字（「爲」在 Terra 中ㄨㄟˊ、ㄨㄟˋ各 50%）的讀音成本會讓它單獨排在許多罕用單音字之後，在語言模型能依上下文加分（「爲」＋「什麼」）之前就被剔除；多保留一條使 10 token 最壞輸入的 Debug p95 約增加 15%。
-- `MappedGramStore` 以 `mmap` 唯讀映射 `flickzhuyin.gram`（FZGram 格式，見 [語言模型編譯](#語言模型編譯)），頁面為可回收的 file-backed clean pages，不計入 Extension 常駐記憶體；查詢先在區塊前綴索引上二分搜尋，再在 16 個 key 的前綴壓縮區塊內循序比對，同時回報是否存在更長的 key 以便提早中止。
+- `MappedGramStore` 以 `mmap` 唯讀映射 `flickbo.gram`（FZGram 格式，見 [語言模型編譯](#語言模型編譯)），頁面為可回收的 file-backed clean pages，不計入 Extension 常駐記憶體；查詢先在區塊前綴索引上二分搜尋，再在 16 個 key 的前綴壓縮區塊內循序比對，同時回報是否存在更長的 key 以便提早中止。
 - `OctagramGrammar` 逐行移植 librime-octagram 的 `Octagram::Query`（預設 `collocation_max_length` 4、`collocation_min_length` 3、penalty −12／−12／−24／−18）：取上下文最後 3 字的各後綴與詞的前 3 字各前綴組成 key，分數為 `value / 10000` 加上 collocation 或 weak collocation penalty，句尾另查 `詞$`；每個上下文建立一個 scorer，快取以詞首字開頭的查詢結果。Decoder 與 librime 相同，把 `grammarWeight × (−分數)` 加進每個分段的 cost：沒有搭配的詞、沒有上下文的第一個詞與 raw 注音音節都付出 no-collocation penalty（預設 12），有搭配時較低；這個每段固定成本也讓搜尋偏好較少的分段。
 
-`FlickZhuyinTests/Fixtures/ranking-gold.tsv` 是代表性的排序 gold set（上下文、注音、預期首選），`GrammarProductionIntegrationTests.testRankingGoldSet` 會輸出無語言模型與多個 `grammarWeight` 下的首選正確數，並要求預設設定不低於無語言模型。gold set 另含常見多音字單字（ㄨㄟˋ→爲、ㄉㄜ˙→的、ㄒㄧㄥˊ→行…）與詞組。目前 49 句中無語言模型 46 句、語言模型 47 句正確（預設沿用 librime 的 `grammarWeight` 1.0）；仍錯的是「這是我的書」（被「食物」搶先）與「他說得對」（得／的需要語法判斷）。曾試過「以 floor 為基準只給獎勵」的形式，會因每多切一段就多一次獎勵而過度分詞（僅 2 句正確），因此改回 librime 的形式。
+`FlickBoTests/Fixtures/ranking-gold.tsv` 是代表性的排序 gold set（上下文、注音、預期首選），`GrammarProductionIntegrationTests.testRankingGoldSet` 會輸出無語言模型與多個 `grammarWeight` 下的首選正確數，並要求預設設定不低於無語言模型。gold set 另含常見多音字單字（ㄨㄟˋ→爲、ㄉㄜ˙→的、ㄒㄧㄥˊ→行…）與詞組。目前 49 句中無語言模型 46 句、語言模型 47 句正確（預設沿用 librime 的 `grammarWeight` 1.0）；仍錯的是「這是我的書」（被「食物」搶先）與「他說得對」（得／的需要語法判斷）。曾試過「以 floor 為基準只給獎勵」的形式，會因每多切一段就多一次獎勵而過度分詞（僅 2 句正確），因此改回 librime 的形式。
 - `LexiconChineseInputPipeline` 在初始化時建立並長期持有 store、parser、matcher 與 decoder，把 Top-K 結果轉成精簡的 `InputCandidate`；轉換時依文字合併候選、每組保留分數最低者，raw 注音候選不受合併影響，並在必要時補上 raw 注音候選；若游標前輸入是全範圍的完整單一音節，再從 store 取出該音節所有單字詞條、以同一 scorer 計分後接在最後。
 - 詞本身的 cost 由可替換的 `DecoderScorer` 負責，目前 `BaselineDecoderScorer` 使用 Essay 詞頻 `sourceWeight`、Terra 讀音可信度 `pronunciationWeight`、parser cost 與簡易分詞懲罰。詞頻成本為 `frequencyCostScale × (1 − sourceWeight)`（預設 8）：由於 `sourceWeight = log1p(f) / log1p(max)`，這等於相對詞頻負對數的固定倍數（8 時約 0.52 倍），讀音成本則為 `readingCostScale × -log(pronunciationWeight)`（預設 0.35）。原本的 `-log(sourceWeight)` 把對數又取一次對數，「爲」比「未」高約 12 倍的詞頻只換得 0.22 的成本差，抵不過「爲」兩個讀音各 50% 的 0.69 讀音成本，單打ㄨㄟˋ時「爲」排不進前 8 名。讀音權重是估計值（Terra 百分比經 Essay 用量修正，合成詞取各字乘積），全額計分時「長」（ㄓㄤˇ 約 31%）與合成詞「長大」即使詞頻較高仍輸給「漲」「漲大」，因此讀音成本打折。在 gold set 上掃描兩個倍數，詞頻 6–8、讀音 0.3–0.4 的區域在有無語言模型時都最好（無 45／有 47；詞頻 5、讀音全額為 43／45，舊公式 41／42），預設取區域中央。每個詞的分詞懲罰 `wordBoundaryCost` 隨詞頻倍數等比例調為 0.56（原 0.35 對應倍數 5），否則高頻短詞拼接（可以＋看）會比完整詞（可以看）便宜；調整後無語言模型再多對 1 句。使用者選字次數的成本減免（上限 2.5，八次選字約 2.25）沿用原值，因詞頻倍數提高，可追過的詞頻差相對縮小；前後詞的搭配由 `GrammarModel` 另外計分。語言模型檔缺失或損毀時 Pipeline 會記錄錯誤並退回無語言模型的排序，輸入不中斷。
 - 語言模型上下文：`ZhuyinComposition.precedingContext` 提供游標前連續的已選文字；若它延伸到組字開頭，`KeyboardViewController` 會在組字開始前讀取 `documentContextBeforeInput`，以 `GrammarContext.tail` 取最後一段連續文字（遇空白、標點或換行即截斷，最多 8 字）接在前面。上下文只存在記憶體中。
@@ -43,17 +43,17 @@ Generated/                     編譯產物（SQLite 詞典、FZGram 語言模�
 
 ### 地區字形
 
-`CharacterVariant`（臺灣／香港／大陸／傳承字形，存在 App Group 的 `characterVariant`，預設臺灣）決定 `CandidateTextConverter` 使用的 OpenCC 轉換：輸出用 `t2tw`／`t2hk`／`t2s`，讀取前文用 `tw2t`／`hk2t`／`s2t`。`MappedOpenCCStore` 以 `mmap` 唯讀映射 `flickzhuyin.opencc`，每個轉換步驟是 OpenCC 的 short-circuit 字典群組：在每個位置由群組中第一個有前綴匹配的字典提供最長匹配，沒有匹配的字元原樣保留。
+`CharacterVariant`（臺灣／香港／大陸／傳承字形，存在 App Group 的 `characterVariant`，預設臺灣）決定 `CandidateTextConverter` 使用的 OpenCC 轉換：輸出用 `t2tw`／`t2hk`／`t2s`，讀取前文用 `tw2t`／`hk2t`／`s2t`。`MappedOpenCCStore` 以 `mmap` 唯讀映射 `flickbo.opencc`，每個轉換步驟是 OpenCC 的 short-circuit 字典群組：在每個位置由群組中第一個有前綴匹配的字典提供最長匹配，沒有匹配的字元原樣保留。
 
 - Decoder 一律在傳承字形下運作；`LexiconChineseInputPipeline` 先把游標前文字轉回傳承字形再交給語言模型，排序完成後才把候選轉為所選字形。轉換後文字相同的候選只保留排序較前者，所以「為」會沿用「爲」的高詞頻。
 - 臺灣用詞不在候選階段轉換：兩岸用詞大多讀音不同（軟件 ㄖㄨㄢˇ ㄐㄧㄢˋ、軟體 ㄖㄨㄢˇ ㄊㄧˇ），把「軟體」掛在「軟件」的讀音下並不合理。編譯器改把 OpenCC `TWPhrases` 併入詞庫（見「詞典編譯」），臺灣字形下 `SQLiteLexiconStore(usesTaiwanWeights: true)` 以 `COALESCE(taiwan_source_weight, source_weight)` 取代 Essay 詞頻；pattern 查詢另以部分索引取出該聲母鍵的臺灣權重詞條，與原本依詞頻排序的前 N 筆合併後重新排序，讓掃描上限也依臺灣權重計算。
 - `InputCandidate` 與 `SelectedChunk` 同時保存顯示文字 `text` 與傳承字形 `canonicalText`；文件插入顯示文字，`UserLearningStore` 記錄 `canonicalText`，所以切換字形後學習資料仍然有效，也不需要有歧義的反向轉換。
 - 後續字詞建議同樣以傳承字形查詢後再轉換。字形設定改變時，`KeyboardViewController` 在下一次 `viewWillAppear` 重建 coordinator 與 Pipeline。
-- `flickzhuyin.opencc` 缺失或損毀時記錄錯誤並退回傳承字形，輸入不中斷。
+- `flickbo.opencc` 缺失或損毀時記錄錯誤並退回傳承字形，輸入不中斷。
 
 ### Extension 整合
 
-`FlickZhuyinKeyboard/ChineseInputCoordinator.swift` 負責非同步協調：每次 pending tokens 改變就增加 revision 並進入 loading，但保留既有候選直到新結果抵達，背景完成後只在 revision 與 token snapshot 都相符時套用結果；詞典缺失或查詢失敗時才發布 raw 注音 fallback。`KeyboardDocumentClient` 與 `DocumentEffectApplier` 隔離 `UITextDocumentProxy`，`CandidateBarView` 以水平 `UICollectionView` 提供固定高度的候選列與展開按鈕，`ExpandedCandidateView` 以垂直 `UICollectionView` 提供展開後的候選列表，兩者都只建立可見範圍的 cell，選項依原寬度自動換行排列。
+`FlickBoKeyboard/ChineseInputCoordinator.swift` 負責非同步協調：每次 pending tokens 改變就增加 revision 並進入 loading，但保留既有候選直到新結果抵達，背景完成後只在 revision 與 token snapshot 都相符時套用結果；詞典缺失或查詢失敗時才發布 raw 注音 fallback。`KeyboardDocumentClient` 與 `DocumentEffectApplier` 隔離 `UITextDocumentProxy`，`CandidateBarView` 以水平 `UICollectionView` 提供固定高度的候選列與展開按鈕，`ExpandedCandidateView` 以垂直 `UICollectionView` 提供展開後的候選列表，兩者都只建立可見範圍的 cell，選項依原寬度自動換行排列。
 
 ### 詞典資料
 
@@ -65,12 +65,12 @@ pinned Terra 詞典經過碼表最小化，常見詞如「注音」「你好」�
 
 ## 建置與測試
 
-建置或測試前需先產生 `Generated/flickzhuyin.sqlite3`（見 [詞典編譯](#詞典編譯)），否則 bundle 資源與依賴 production 詞典的測試會失敗。在 Xcode 中選擇 `FlickZhuyin` scheme 後執行 Build 或 Test，或使用命令列（將 `name` 替換成 Xcode 中現有的 iPhone 模擬器）：
+建置或測試前需先產生 `Generated/flickbo.sqlite3`（見 [詞典編譯](#詞典編譯)），否則 bundle 資源與依賴 production 詞典的測試會失敗。在 Xcode 中選擇 `FlickBo` scheme 後執行 Build 或 Test，或使用命令列（將 `name` 替換成 Xcode 中現有的 iPhone 模擬器）：
 
 ```sh
 xcodebuild \
-  -project FlickZhuyin.xcodeproj \
-  -scheme FlickZhuyin \
+  -project FlickBo.xcodeproj \
+  -scheme FlickBo \
   -destination 'platform=iOS Simulator,name=<模擬器名稱>' \
   test
 ```
@@ -121,11 +121,11 @@ python3 Tools/DictionaryCompiler/compile_dictionary.py build \
   --essay-manifest Vendor/rime-essay/SOURCE.json \
   --opencc-source Vendor/opencc \
   --opencc-manifest Vendor/opencc/SOURCE.json \
-  --output Generated/flickzhuyin.sqlite3 \
+  --output Generated/flickbo.sqlite3 \
   --report Generated/dictionary-report.json
 ```
 
-產物 `Generated/flickzhuyin.sqlite3` 不納入版控，clone 後必須先執行此步驟才能建置或測試；`Generated/dictionary-report.json` 雖由 build 產生但仍納入版控，供 production 詞典測試比對。
+產物 `Generated/flickbo.sqlite3` 不納入版控，clone 後必須先執行此步驟才能建置或測試；`Generated/dictionary-report.json` 雖由 build 產生但仍納入版控，供 production 詞典測試比對。
 
 編譯流程：
 
@@ -137,7 +137,7 @@ python3 Tools/DictionaryCompiler/compile_dictionary.py build \
 - 每個 canonical 讀音另計算 `initial_key`（schema v4）並建立索引，且驗證其分段數等於 `syllable_count`；完整性統計會寫入 report。
 - 無法標音的詞條只會統計在 report；格式錯誤或 hash 不符則會讓 build 失敗。report 也會記錄資料庫大小與編譯時間，資料庫大小有硬上限。
 
-在相同 Python 與 SQLite library 版本下，相同 source bytes 與 compiler 版本會產生 byte-for-byte 相同的 SQLite 檔案與 report；不同 SQLite library 版本只保證 schema、metadata、排序後資料內容與 report 相同，不保證 SQLite 實體 page layout 或檔案 hash 相同。編譯耗時不寫入可重現的 report。output 只加入 `FlickZhuyinKeyboard` 的 bundle resources。
+在相同 Python 與 SQLite library 版本下，相同 source bytes 與 compiler 版本會產生 byte-for-byte 相同的 SQLite 檔案與 report；不同 SQLite library 版本只保證 schema、metadata、排序後資料內容與 report 相同，不保證 SQLite 實體 page layout 或檔案 hash 相同。編譯耗時不寫入可重現的 report。output 只加入 `FlickBoKeyboard` 的 bundle resources。
 
 Swift 測試使用的迷你 fixture 由下列命令產生，Python 測試以 logical database snapshot 檢查它是否與 fixture source 同步：
 
@@ -147,8 +147,8 @@ python3 Tools/DictionaryCompiler/compile_dictionary.py build \
   --terra-manifest Tools/DictionaryCompiler/tests/fixtures/zhuyin_tests.SOURCE.json \
   --essay-source Tools/DictionaryCompiler/tests/fixtures/zhuyin_tests.essay.txt \
   --essay-manifest Tools/DictionaryCompiler/tests/fixtures/zhuyin_tests.essay.SOURCE.json \
-  --output FlickZhuyinTests/Fixtures/flickzhuyin-tests.sqlite3 \
-  --report /tmp/flickzhuyin-fixture-report.json
+  --output FlickBoTests/Fixtures/flickbo-tests.sqlite3 \
+  --report /tmp/flickbo-fixture-report.json
 ```
 
 ## 語言模型編譯
@@ -167,14 +167,14 @@ python3 Tools/DictionaryCompiler/compile_dictionary.py fetch-octagram \
 python3 Tools/DictionaryCompiler/compile_dictionary.py build-grammar \
   --source Vendor/rime-octagram-data/zh-hant-t-essay-bgw.gram \
   --manifest Vendor/rime-octagram-data/SOURCE.json \
-  --output Generated/flickzhuyin.gram \
+  --output Generated/flickbo.gram \
   --report Generated/grammar-report.json
 ```
 
 - `octagram.py` 解碼上游 darts-clone 雙陣列 trie 與 octagram 的 key 編碼，串流輸出 n-gram 與分數（`ln(x) × 10000`）。
 - 移除 octagram 不會查詢的句首（`$` 開頭）key，其餘以 UTF-8 bytes 排序，每 16 個 key 為一個前綴壓縮區塊；分數以最小值為基準右移 1 位存成 16 位元（誤差 ≤ 0.0001）。另存每個區塊首 key 前 8 bytes 的索引，讓二分搜尋集中在約 2 MB 的連續記憶體。
 - 格式細節見 `octagram.py` 開頭的說明；report 記錄 key 數、長度分布、分數範圍、輸出大小與 SHA-256，輸出大小有 64 MB 硬上限。
-- `Generated/flickzhuyin.gram`（約 37 MB）不納入版控，`Generated/grammar-report.json` 納入版控。缺少 `.gram` 時 production 語言模型測試會 skip，鍵盤則退回無語言模型排序。
+- `Generated/flickbo.gram`（約 37 MB）不納入版控，`Generated/grammar-report.json` 納入版控。缺少 `.gram` 時 production 語言模型測試會 skip，鍵盤則退回無語言模型排序。
 
 Swift 測試使用的迷你語言模型 fixture 由下列命令產生（小區塊以涵蓋跨區塊查詢），Python 測試會檢查它是否與 fixture source 同步：
 
@@ -182,8 +182,8 @@ Swift 測試使用的迷你語言模型 fixture 由下列命令產生（小區�
 python3 Tools/DictionaryCompiler/compile_dictionary.py build-grammar \
   --text-source Tools/DictionaryCompiler/tests/fixtures/octagram_tests.txt \
   --block-size 4 \
-  --output FlickZhuyinTests/Fixtures/flickzhuyin-tests.gram \
-  --report /tmp/flickzhuyin-grammar-fixture-report.json
+  --output FlickBoTests/Fixtures/flickbo-tests.gram \
+  --report /tmp/flickbo-grammar-fixture-report.json
 ```
 
 ## 字形轉換資料編譯
@@ -196,17 +196,17 @@ python3 Tools/DictionaryCompiler/compile_dictionary.py fetch-opencc \
   --dest Vendor/opencc
 ```
 
-重建 `Generated/flickzhuyin.opencc` 與 Swift golden fixture（不需要網路）：
+重建 `Generated/flickbo.opencc` 與 Swift golden fixture（不需要網路）：
 
 ```sh
 python3 Tools/DictionaryCompiler/compile_dictionary.py build-opencc \
-  --golden FlickZhuyinTests/Fixtures/opencc-cases.tsv
+  --golden FlickBoTests/Fixtures/opencc-cases.tsv
 ```
 
 - `opencc_data.py` 解析 OpenCC 文字字典（只取每個詞條的第一個值），依 OpenCC `reverse.py`（含 `# @reverse-prefer:` 標註）產生 `TWVariantsRev`／`HKVariantsRev`，並依 OpenCC 1.4.2 的 `data/config/*.json` 定義轉換鏈；格式細節見該檔開頭說明。
 - 未實作的 OpenCC 功能：segmentation（這些設定都沒有使用）、`may_output_tofu` 字典（OpenCC 預設關閉）與 `STPhrases_GeneratedFromRegionalPhrases`（只影響讀取前文用的 `s2t`）。
-- Python 測試以 OpenCC 上游 `testcases.json` 驗證參考實作（排除 3 個需要 tofu 字典的 `t2s` 案例），並確認納入版控的 `flickzhuyin.opencc` 與 `opencc-cases.tsv` 與來源同步；Swift 測試以同一份 golden 驗證執行期轉換器。
-- 產物約 1.8 MB，納入版控，並只加入 `FlickZhuyinKeyboard` 的 bundle resources；授權全文 `Vendor/opencc/OpenCC-LICENSE.txt` 打包進主 App 與 Extension。
+- Python 測試以 OpenCC 上游 `testcases.json` 驗證參考實作（排除 3 個需要 tofu 字典的 `t2s` 案例），並確認納入版控的 `flickbo.opencc` 與 `opencc-cases.tsv` 與來源同步；Swift 測試以同一份 golden 驗證執行期轉換器。
+- 產物約 1.8 MB，納入版控，並只加入 `FlickBoKeyboard` 的 bundle resources；授權全文 `Vendor/opencc/OpenCC-LICENSE.txt` 打包進主 App 與 Extension。
 
 ## 效能
 
@@ -216,10 +216,10 @@ python3 Tools/DictionaryCompiler/compile_dictionary.py build-opencc \
 
 ## 資源檔案
 
-`Generated/flickzhuyin.sqlite3` 與 `Generated/flickzhuyin.gram` 是鍵盤執行所需的可重現資源，但不納入版控：`.gitignore` 忽略兩者，歷史中也不存在任何版本。原因是它們可由 pinned `Vendor/` 來源離線重建（見 [詞典編譯](#詞典編譯) 與 [語言模型編譯](#語言模型編譯)），且 SQLite 詞典超過 GitHub 一般 Git blob 的 100 MB 限制；語言模型的上游 `.gram` 同樣不納入版控，只保留 manifest 與授權。clone 或刪除 `Generated/` 後，建置與測試前必須先執行 `build`，並以 `fetch-octagram` 與 `build-grammar` 產生語言模型；`Generated/dictionary-report.json`、`Generated/grammar-report.json` 與 `Generated/LICENSE.md` 仍納入版控。
+`Generated/flickbo.sqlite3` 與 `Generated/flickbo.gram` 是鍵盤執行所需的可重現資源，但不納入版控：`.gitignore` 忽略兩者，歷史中也不存在任何版本。原因是它們可由 pinned `Vendor/` 來源離線重建（見 [詞典編譯](#詞典編譯) 與 [語言模型編譯](#語言模型編譯)），且 SQLite 詞典超過 GitHub 一般 Git blob 的 100 MB 限制；語言模型的上游 `.gram` 同樣不納入版控，只保留 manifest 與授權。clone 或刪除 `Generated/` 後，建置與測試前必須先執行 `build`，並以 `fetch-octagram` 與 `build-grammar` 產生語言模型；`Generated/dictionary-report.json`、`Generated/grammar-report.json` 與 `Generated/LICENSE.md` 仍納入版控。
 
 ## 第三方資料
 
 詞典來源以 pinned commit 鎖定，各 `SOURCE.json` 記錄來源、commit、SHA-256 與取得時間，Essay manifest 另記錄 LICENSE SHA-256 與格式版本；`build` 會驗證 source 與 license 的 SHA-256，`fetch-terra`／`fetch-essay` 只能在明確指定 commit 時使用，一般 build 與 App 執行期都不連網。
 
-`Generated/flickzhuyin.sqlite3` 同時包含 Terra Pinyin 與 Rime Essay 的衍生資料，`Generated/flickzhuyin.gram` 衍生自 rime-octagram-data，sidecar 授權位於 `Generated/LICENSE.md`。語言模型的 `fetch-octagram` 同樣只能以明確 commit 下載，`build-grammar` 會驗證 source 與 license 的 SHA-256。完整 attribution、修改說明與授權連結見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；同一份 notices 與上游 LGPL 授權會打包進主 App 及 Keyboard Extension，App 內可從「第三方授權」開啟閱讀。發佈前仍需人工確認最終合規方式。
+`Generated/flickbo.sqlite3` 同時包含 Terra Pinyin 與 Rime Essay 的衍生資料，`Generated/flickbo.gram` 衍生自 rime-octagram-data，sidecar 授權位於 `Generated/LICENSE.md`。語言模型的 `fetch-octagram` 同樣只能以明確 commit 下載，`build-grammar` 會驗證 source 與 license 的 SHA-256。完整 attribution、修改說明與授權連結見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；同一份 notices 與上游 LGPL 授權會打包進主 App 及 Keyboard Extension，App 內可從「第三方授權」開啟閱讀。發佈前仍需人工確認最終合規方式。

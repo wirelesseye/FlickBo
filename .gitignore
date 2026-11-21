@@ -48,8 +48,8 @@ __pycache__/
 *.sqlite3-shm
 
 # Generated
-Generated/flickzhuyin.sqlite3
+Generated/flickbo.sqlite3
 
 # Octagram source (fetched by compile_dictionary.py fetch-octagram)
 Vendor/rime-octagram-data/*.gram
-Generated/flickzhuyin.gram
+Generated/flickbo.gram

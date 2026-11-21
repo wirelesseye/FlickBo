@@ -4,10 +4,10 @@ import XCTest
 class ChineseInputTestCase: XCTestCase {
     func fixtureURL() throws -> URL {
         guard let url = Bundle(for: type(of: self)).url(
-            forResource: "flickzhuyin-tests",
+            forResource: "flickbo-tests",
             withExtension: "sqlite3"
         ) else {
-            throw LexiconStoreError.resourceNotFound("flickzhuyin-tests.sqlite3")
+            throw LexiconStoreError.resourceNotFound("flickbo-tests.sqlite3")
         }
         return url
     }
@@ -597,7 +597,7 @@ final class SyllableParserTests: XCTestCase {
 
     func testParserCanLoadInventoryFromStore() throws {
         let url = try XCTUnwrap(
-            Bundle(for: type(of: self)).url(forResource: "flickzhuyin-tests", withExtension: "sqlite3")
+            Bundle(for: type(of: self)).url(forResource: "flickbo-tests", withExtension: "sqlite3")
         )
         let store = try SQLiteLexiconStore(url: url)
         let storeParser = try SyllableParser(store: store)

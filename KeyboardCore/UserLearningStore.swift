@@ -46,7 +46,7 @@ final class UserLearningStore: @unchecked Sendable {
     static let fileName = "user-learning.sqlite3"
     static let schemaVersion = 1
 
-    private let queue = DispatchQueue(label: "com.wirelesseye.FlickZhuyin.UserLearningStore")
+    private let queue = DispatchQueue(label: "com.wirelesseye.FlickBo.UserLearningStore")
     private let database: OpaquePointer
     private let writable: Bool
     private var cachedCounts: [UserWordKey: Int] = [:]

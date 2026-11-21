@@ -556,7 +556,7 @@ final class KeyboardViewController: UIInputViewController {
     /// Keyboard extensions can't call `UIApplication.shared`, so walk the responder chain to the
     /// host application and invoke `openURL:options:completionHandler:` dynamically.
     private func openContainingApp() {
-        guard let url = URL(string: "flickzhuyin://settings") else { return }
+        guard let url = URL(string: "flickbo://settings") else { return }
         let selector = NSSelectorFromString("openURL:options:completionHandler:")
         var responder: UIResponder? = self
         while let current = responder {

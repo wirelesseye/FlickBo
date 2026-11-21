@@ -2,8 +2,8 @@ import XCTest
 
 private func fixtureGramURL(for testCase: XCTestCase) throws -> URL {
     try XCTUnwrap(
-        Bundle(for: type(of: testCase)).url(forResource: "flickzhuyin-tests", withExtension: "gram"),
-        "flickzhuyin-tests.gram is missing from the test bundle"
+        Bundle(for: type(of: testCase)).url(forResource: "flickbo-tests", withExtension: "gram"),
+        "flickbo-tests.gram is missing from the test bundle"
     )
 }
 
@@ -376,12 +376,12 @@ final class GrammarProductionIntegrationTests: XCTestCase {
     }
 
     private func makeDecoderInputs() throws -> (SQLiteLexiconStore, OctagramGrammar) {
-        let grammarURL = repositoryRoot.appendingPathComponent("Generated/flickzhuyin.gram")
+        let grammarURL = repositoryRoot.appendingPathComponent("Generated/flickbo.gram")
         try XCTSkipUnless(
             FileManager.default.fileExists(atPath: grammarURL.path),
-            "run build-grammar to generate Generated/flickzhuyin.gram"
+            "run build-grammar to generate Generated/flickbo.gram"
         )
-        let store = try SQLiteLexiconStore(url: repositoryRoot.appendingPathComponent("Generated/flickzhuyin.sqlite3"))
+        let store = try SQLiteLexiconStore(url: repositoryRoot.appendingPathComponent("Generated/flickbo.sqlite3"))
         return (store, OctagramGrammar(store: try MappedGramStore(url: grammarURL)))
     }
 
@@ -413,7 +413,7 @@ final class GrammarProductionIntegrationTests: XCTestCase {
     }
 
     private func goldEntries() throws -> [GoldEntry] {
-        let url = repositoryRoot.appendingPathComponent("FlickZhuyinTests/Fixtures/ranking-gold.tsv")
+        let url = repositoryRoot.appendingPathComponent("FlickBoTests/Fixtures/ranking-gold.tsv")
         let tones = Dictionary(uniqueKeysWithValues: MandarinTone.allCases.map { ($0.symbol, $0) })
         return try String(contentsOf: url, encoding: .utf8)
             .split(separator: "\n", omittingEmptySubsequences: true)

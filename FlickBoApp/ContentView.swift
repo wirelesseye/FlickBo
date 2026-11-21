@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct ContentView: View {
+    private static let appDisplayName =
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "FlickBo"
+
     @State private var text = ""
     @AppStorage(
         KeyboardSettings.showsDirectionalSymbolsKey,
@@ -102,7 +105,7 @@ struct ContentView: View {
                 .padding()
             }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("FlickZhuyin")
+            .navigationTitle(Self.appDisplayName)
             .onAppear(perform: KeyboardSettings.logAppGroupStatus)
             .confirmationDialog("清除所有新詞與選字次數？", isPresented: $showsClearConfirmation) {
                 Button("清除學習資料", role: .destructive) {
