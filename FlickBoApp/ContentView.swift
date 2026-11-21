@@ -28,93 +28,125 @@ struct ContentView: View {
     @State private var showsClearConfirmation = false
     @State private var learningMessage: String?
 
+    private var sharedSettingsAvailable: Bool {
+        KeyboardSettings.appGroupIdentifier != nil
+    }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("鍵盤測試")
-                        .font(.headline)
-
+            Form {
+                Section {
                     TextEditor(text: $text)
                         .font(.body)
-                        .frame(height: 160)
-                        .padding(8)
-                        .scrollContentBackground(.hidden)
-                        .background(Color(uiColor: .secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color(uiColor: .separator), lineWidth: 0.5)
+                        .frame(minHeight: 120)
+                        .overlay(alignment: .topLeading) {
+                            if text.isEmpty {
+                                Text("在這裡試用鍵盤⋯")
+                                    .foregroundStyle(.tertiary)
+                                    .padding(.top, 8)
+                                    .padding(.leading, 5)
+                                    .allowsHitTesting(false)
+                            }
                         }
                         .accessibilityLabel("鍵盤測試文字")
+                } header: {
+                    Text("鍵盤測試")
+                }
 
-                    Group {
-                        LabeledContent("字形轉換") {
-                            Picker("字形轉換", selection: $characterVariant) {
-                                ForEach(CharacterVariant.allCases, id: \.self) { variant in
-                                    Text(variant.title).tag(variant)
-                                }
-                            }
-                            .labelsHidden()
+                if !sharedSettingsAvailable {
+                    Section {
+                        Label {
+                            Text("無法開啟鍵盤的共享設定。請確認安裝時保留鍵盤擴充功能，且主 App 與擴充功能的簽署都包含同一個 App Group。")
+                                .font(.footnote)
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
                         }
-                        Text("候選與建議字詞使用的字形。")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-
-                        Toggle("顯示四方向符號", isOn: $showsDirectionalSymbols)
-                        Text("關閉後注音與標點按鍵只顯示中央符號。")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-
-                        Toggle("ABC 模式使用九宮格", isOn: $abcUsesFlickLayout)
-                        Text("開啟時以滑動選擇字母；關閉後改用 QWERTY 全鍵盤。")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-
-                        Toggle("選完字後自動提交", isOn: $autoCommitComposition)
-                        Text("關閉後需按「確定」提交組字內容。")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-
-                        Toggle("記憶選字", isOn: $remembersSelections)
-                        Text("提交後記住新詞與選字次數。鍵盤需要開啟「允許完整取用」才能寫入；資料只保存在此裝置。")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-
-                        Button("清除學習資料", role: .destructive) {
-                            showsClearConfirmation = true
-                        }
-
-                        NavigationLink("自訂詞彙") {
-                            CustomWordsView()
-                        }
-                        Text("自行加入的詞彙與讀音，可隨時編輯。與自動記憶的選字不同，不會被清除學習資料刪除。")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    .disabled(KeyboardSettings.appGroupIdentifier == nil)
-
-                    if KeyboardSettings.appGroupIdentifier == nil {
-                        Text("無法開啟鍵盤的共享設定。請確認安裝時保留鍵盤擴充功能，且主 App 與擴充功能的簽署都包含同一個 App Group。")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let learningMessage {
-                        Text(learningMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    NavigationLink("第三方授權") {
-                        ThirdPartyLicensesView()
                     }
                 }
-                .padding()
+
+                Group {
+                    Section {
+                        Picker(selection: $characterVariant) {
+                            ForEach(CharacterVariant.allCases, id: \.self) { variant in
+                                Text(variant.title).tag(variant)
+                            }
+                        } label: {
+                            SettingLabel("字形轉換", systemImage: "character.book.closed", color: .indigo)
+                        }
+                    } header: {
+                        Text("字形")
+                    } footer: {
+                        Text("候選與建議字詞使用的字形。")
+                    }
+
+                    Section {
+                        Toggle(isOn: $showsDirectionalSymbols) {
+                            SettingLabel("顯示四方向符號", systemImage: "arrow.up.and.down.and.arrow.left.and.right", color: .blue)
+                        }
+                        Toggle(isOn: $abcUsesFlickLayout) {
+                            SettingLabel("ABC 模式使用九宮格", systemImage: "square.grid.3x3", color: .teal)
+                        }
+                    } header: {
+                        Text("鍵盤配置")
+                    } footer: {
+                        Text("關閉四方向符號後，注音與標點按鍵只顯示中央符號。ABC 九宮格以滑動選擇字母；關閉後改用 QWERTY 全鍵盤。")
+                    }
+
+                    Section {
+                        Toggle(isOn: $autoCommitComposition) {
+                            SettingLabel("選完字後自動提交", systemImage: "return", color: .green)
+                        }
+                        Toggle(isOn: $remembersSelections) {
+                            SettingLabel("記憶選字", systemImage: "brain", color: .pink)
+                        }
+                        NavigationLink {
+                            CustomWordsView()
+                        } label: {
+                            SettingLabel("自訂詞彙", systemImage: "text.book.closed", color: .orange)
+                        }
+                    } header: {
+                        Text("輸入")
+                    } footer: {
+                        Text("關閉自動提交後，需按「確定」提交組字內容。記憶選字會在提交後記住新詞與選字次數，鍵盤需開啟「允許完整取用」才能寫入，資料只保存在此裝置。自訂詞彙可隨時編輯，不會被清除學習資料刪除。")
+                    }
+                }
+                .disabled(!sharedSettingsAvailable)
+
+                Section {
+                    NavigationLink {
+                        ThirdPartyLicensesView()
+                    } label: {
+                        SettingLabel("第三方授權", systemImage: "doc.text", color: .gray)
+                    }
+                } header: {
+                    Text("關於")
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        showsClearConfirmation = true
+                    } label: {
+                        Text("清除學習資料")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .disabled(!sharedSettingsAvailable)
+                } footer: {
+                    if let learningMessage {
+                        Text(learningMessage)
+                    } else {
+                        Text("刪除自動記憶的新詞與選字次數，自訂詞彙不受影響。")
+                    }
+                }
             }
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(Self.appDisplayName)
             .onAppear(perform: KeyboardSettings.logAppGroupStatus)
-            .confirmationDialog("清除所有新詞與選字次數？", isPresented: $showsClearConfirmation) {
+            .confirmationDialog(
+                "清除所有新詞與選字次數？",
+                isPresented: $showsClearConfirmation,
+                titleVisibility: .visible
+            ) {
                 Button("清除學習資料", role: .destructive) {
                     Task {
                         do {
@@ -130,6 +162,31 @@ struct ContentView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+/// A settings row label with a tinted rounded-square icon, like the Settings app.
+private struct SettingLabel: View {
+    let title: String
+    let systemImage: String
+    let color: Color
+
+    init(_ title: String, systemImage: String, color: Color) {
+        self.title = title
+        self.systemImage = systemImage
+        self.color = color
+    }
+
+    var body: some View {
+        Label {
+            Text(title)
+        } icon: {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 28)
+                .background(color.gradient, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
     }
 }
