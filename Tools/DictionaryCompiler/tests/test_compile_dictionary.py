@@ -480,6 +480,48 @@ class AnnotationTests(CompilerTestCase):
         self.assertEqual(report["generatedPronunciations"], 0)
 
 
+class ReadingPropagationTests(CompilerTestCase):
+    def readings(self, output, text):
+        return self.query(
+            output,
+            f"SELECT base_key, tone_key FROM pronunciation WHERE text = '{text}' ORDER BY base_key, tone_key",
+        )
+
+    def test_alternative_reading_of_embedded_word_spreads_to_longer_entries(self):
+        body = (
+            "什麼\tshe2 me5\n什麼\tshen2 me5\n爲什麼\twei4 shen2 me5\n"
+            "什\tshe2\t0%\n什\tshi2\t100%\n麼\tme5\n呢\tne5\n爲\twei4\n"
+        )
+        output, report = self.build(body, essay_body="爲什麼\t100\n什麼呢\t50\n")
+        she = SEPARATOR.join(["ㄨㄟ", "ㄕㄜ", "ㄇㄜ"])
+        shen = SEPARATOR.join(["ㄨㄟ", "ㄕㄣ", "ㄇㄜ"])
+        self.assertEqual(self.readings(output, "爲什麼"), [(she, "425"), (shen, "425")])
+        weights = self.query(
+            output,
+            "SELECT base_key, source_weight, pronunciation_weight, source_kind FROM pronunciation "
+            "WHERE text = '爲什麼' ORDER BY base_key",
+        )
+        self.assertEqual([row[1:] for row in weights[:1]], [row[1:] for row in weights[1:]])
+        # Composed Essay entries skip the 0% she2 of 什, but gain it through 什麼.
+        self.assertEqual(
+            self.readings(output, "什麼呢"),
+            [
+                (SEPARATOR.join(["ㄕ", "ㄇㄜ", "ㄋㄜ"]), "255"),
+                (SEPARATOR.join(["ㄕㄜ", "ㄇㄜ", "ㄋㄜ"]), "255"),
+                (SEPARATOR.join(["ㄕㄣ", "ㄇㄜ", "ㄋㄜ"]), "255"),
+            ],
+        )
+        self.assertEqual(report["propagatedReadings"]["sourceWords"], 1)
+        self.assertEqual(report["propagatedReadings"]["addedReadings"], 3)
+
+    def test_unrelated_readings_and_the_word_itself_are_untouched(self):
+        body = "什麼\tshe2 me5\n什麼\tshen2 me5\n甚\tshen4\n麼\tme5\n"
+        output, report = self.build(body, essay_body="甚麼\t10\n")
+        self.assertEqual(self.readings(output, "甚麼"), [(SEPARATOR.join(["ㄕㄣ", "ㄇㄜ"]), "45")])
+        self.assertEqual(len(self.readings(output, "什麼")), 2)
+        self.assertEqual(report["propagatedReadings"]["addedReadings"], 0)
+
+
 class NormalizationTests(unittest.TestCase):
     def test_boundaries(self):
         self.assertEqual(normalize_frequency(0, 100), 0.0)
@@ -616,13 +658,13 @@ class CompilationTests(CompilerTestCase):
         self.assertEqual(metadata["essay_source_sha256"], report["sources"]["essay"]["sha256"])
         self.assertEqual(metadata["entry_count"], str(report["compiledEntries"]))
         self.assertEqual(metadata["dictionary_version"], "1.0")
-        self.assertEqual(metadata["compiler_version"], "5")
+        self.assertEqual(metadata["compiler_version"], "6")
         self.assertEqual(metadata["essay_entry_count"], "1")
         self.assertEqual(metadata["essay_annotated_entry_count"], "1")
         self.assertEqual(metadata["essay_frequency_max"], "100")
         self.assertEqual(metadata["weight_normalization"], "log1p(frequency)/log1p(max_frequency)")
         self.assertEqual(report["schemaVersion"], 4)
-        self.assertEqual(report["compilerVersion"], "5")
+        self.assertEqual(report["compilerVersion"], "6")
         inventory = [row[0] for row in self.query(output, "SELECT base FROM syllable_inventory ORDER BY base")]
         self.assertEqual(inventory, sorted({"ㄓㄨㄥ", "ㄨㄣ"}))
         self.assertEqual(self.query(output, "PRAGMA user_version")[0][0], 4)
@@ -786,7 +828,7 @@ class ProductionDictionaryTests(CompilerTestCase):
         essay_manifest = json.loads(PRODUCTION_ESSAY_MANIFEST.read_text(encoding="utf-8"))
         metadata = dict(self.query(PRODUCTION_DATABASE, "SELECT key, value FROM metadata"))
         self.assertEqual(metadata["schema_version"], "4")
-        self.assertEqual(metadata["compiler_version"], "5")
+        self.assertEqual(metadata["compiler_version"], "6")
         self.assertEqual(metadata["terra_source_repository"], terra_manifest["repository"])
         self.assertEqual(metadata["terra_source_commit"], terra_manifest["commit"])
         self.assertEqual(metadata["terra_source_sha256"], terra_manifest["sha256"])

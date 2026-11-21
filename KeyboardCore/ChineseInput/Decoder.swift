@@ -22,6 +22,12 @@ struct DecoderConfiguration: Equatable, Sendable {
     var grammarWeight = 1.0
     /// Partial sentences kept at each position when decoding with a grammar.
     var beamWidth = 5
+    /// Extra partial sentences kept at each position because their last word
+    /// is among the most frequent in the corpus. A frequent character with
+    /// several readings (爲 is split 50/50 between ㄨㄟˊ and ㄨㄟˋ) otherwise
+    /// loses to rarer single-reading characters before the grammar can reward
+    /// it in context (爲 + 什麼).
+    var frequentWordReserve = 1
 
     func validate() throws {
         guard maximumCandidates > 0 else {
@@ -45,6 +51,9 @@ struct DecoderConfiguration: Equatable, Sendable {
         }
         guard beamWidth > 0 else {
             throw DecoderError.invalidConfiguration("beamWidth must be greater than zero")
+        }
+        guard frequentWordReserve >= 0 else {
+            throw DecoderError.invalidConfiguration("frequentWordReserve must not be negative")
         }
     }
 }
@@ -268,7 +277,11 @@ struct Decoder: Sendable {
         let window = grammar.contextWindow
 
         for position in 0..<tokenCount {
-            let beam = Self.survivors(of: lines[position], limit: configuration.beamWidth) {
+            let beam = Self.survivors(
+                of: lines[position],
+                limit: configuration.beamWidth,
+                frequentWordReserve: configuration.frequentWordReserve
+            ) {
                 BeamLineIdentity(text: $0.text, pronunciationKey: $0.pronunciationKey, context: $0.context)
             }
             lines[position] = []
@@ -312,18 +325,43 @@ struct Decoder: Sendable {
     /// The best `limit` lines with distinct identities. Lines are ordered by
     /// score first, so identities (which build strings) are computed only
     /// while walking down from the best.
+    /// After the best `limit`, up to `frequentWordReserve` more lines are kept
+    /// whose last word has the highest corpus frequency (see
+    /// `DecoderConfiguration.frequentWordReserve`).
     private static func survivors<Identity: Hashable>(
         of lines: [BeamLine],
         limit: Int,
+        frequentWordReserve: Int = 0,
         identity: (BeamLine) -> Identity
     ) -> [BeamLine] {
         var seen = Set<Identity>()
         var result: [BeamLine] = []
-        result.reserveCapacity(limit)
-        for line in lines.sorted(by: BeamLine.orderedBefore) {
-            guard result.count < limit else { break }
-            if seen.insert(identity(line)).inserted {
-                result.append(line)
+        result.reserveCapacity(limit + frequentWordReserve)
+        let ordered = lines.sorted(by: BeamLine.orderedBefore)
+        var next = 0
+        while next < ordered.count, result.count < limit {
+            if seen.insert(identity(ordered[next])).inserted {
+                result.append(ordered[next])
+            }
+            next += 1
+        }
+        guard frequentWordReserve > 0, next < ordered.count else { return result }
+        // The reserve is tiny, so pick each line with a linear scan instead of
+        // sorting the rest. `ordered` is in score order, so strict `>` keeps
+        // the better-scoring line among equally frequent words.
+        var taken = Set<Int>()
+        for _ in 0..<frequentWordReserve {
+            var best: (index: Int, frequency: Double)?
+            for index in next..<ordered.count where !taken.contains(index) {
+                guard let frequency = ordered[index].lastWordFrequency else { continue }
+                if best == nil || frequency > best!.frequency {
+                    best = (index, frequency)
+                }
+            }
+            guard let best else { break }
+            taken.insert(best.index)
+            if seen.insert(identity(ordered[best.index])).inserted {
+                result.append(ordered[best.index])
             }
         }
         return result
@@ -426,6 +464,10 @@ private final class PreparedTransition {
     let isRaw: Bool
     lazy var pronunciationKey = transition.pronunciation.map(\.canonicalKey).joined(separator: "\u{1f}")
     lazy var segmentSignature = segment.canonicalSignature
+    lazy var sourceWeight: Double? = {
+        guard case let .word(edge) = transition.payload else { return nil }
+        return edge.sourceWeight
+    }()
 
     init(transition: DecoderTransition) {
         self.transition = transition
@@ -576,6 +618,9 @@ private final class BeamLine {
     }
 
     lazy var text: String = (predecessor?.text ?? "") + (prepared?.transition.text ?? "")
+
+    /// Corpus frequency weight of the last word, when it is a weighted word.
+    var lastWordFrequency: Double? { prepared?.sourceWeight }
 
     lazy var pronunciationKey: String = {
         guard let prepared else { return "" }

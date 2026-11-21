@@ -306,6 +306,54 @@ final class GrammarDecoderTests: XCTestCase {
         XCTAssertFalse(grammar.queries.contains { $0.hasSuffix("|丙") }, "丙 follows a raw syllable")
     }
 
+    func testFrequentWordReserveKeepsAFrequentWordForTheGrammar() throws {
+        let syllable = SyllableLattice(
+            tokenCount: 2,
+            outgoingEdges: [[edge(0, first)], [edge(1, second)], []]
+        )
+        // 甲 to 丁 have one reading; 爲 is the most frequent word but its
+        // reading prior makes it the most expensive on its own.
+        var polyphonic = word(0, "爲", first, weight: 0.9)
+        polyphonic = WordEdge(
+            tokenRange: polyphonic.tokenRange,
+            text: polyphonic.text,
+            pronunciation: polyphonic.pronunciation,
+            sourceWeight: 0.9,
+            pronunciationWeight: 0.1,
+            syllableEdges: polyphonic.syllableEdges
+        )
+        let words = WordLattice(
+            tokenCount: 2,
+            outgoingEdges: [
+                ["甲", "乙", "丙", "丁"].map { word(0, $0, first, weight: 0.5) } + [polyphonic],
+                [word(1, "麼", second, weight: 0.5)],
+                [],
+            ]
+        )
+        let grammar = StubGrammar(["爲|麼": 0])
+        var configuration = DecoderConfiguration()
+        configuration.beamWidth = 2
+        configuration.frequentWordReserve = 0
+        let pruned = try Decoder(configuration: configuration, grammar: grammar)
+            .decode(syllableLattice: syllable, wordLattice: words)
+        XCTAssertFalse(pruned.contains { $0.text == "爲麼" })
+
+        configuration.frequentWordReserve = 1
+        let kept = try Decoder(configuration: configuration, grammar: grammar)
+            .decode(syllableLattice: syllable, wordLattice: words)
+        XCTAssertEqual(kept.first?.text, "爲麼")
+    }
+
+    func testNegativeFrequentWordReserveIsRejected() {
+        var configuration = DecoderConfiguration()
+        configuration.frequentWordReserve = -1
+        let (syllable, words) = lattices()
+        XCTAssertThrowsError(
+            try Decoder(configuration: configuration, grammar: StubGrammar([:]))
+                .decode(syllableLattice: syllable, wordLattice: words)
+        )
+    }
+
     func testInvalidBeamWidthIsRejected() {
         var configuration = DecoderConfiguration()
         configuration.beamWidth = 0

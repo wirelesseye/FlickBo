@@ -203,6 +203,36 @@ final class CharacterVariantProductionTests: XCTestCase {
             XCTAssertEqual(first?.canonicalText, "爲什麼", "\(variant)")
         }
     }
+
+    func testTaiwanReadingOfShenmeTypesWeishenme() async throws {
+        let databaseURL = repositoryRoot.appendingPathComponent("Generated/flickzhuyin.sqlite3")
+        let grammarURL = repositoryRoot.appendingPathComponent("Generated/flickzhuyin.gram")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: databaseURL.path), "production dictionary not built")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: grammarURL.path), "production grammar not built")
+        let pipeline = try LexiconChineseInputPipeline(
+            store: SQLiteLexiconStore(url: databaseURL),
+            decoder: Decoder(
+                configuration: DecoderConfiguration(maximumCandidates: 30),
+                grammar: OctagramGrammar(store: MappedGramStore(url: grammarURL))
+            ),
+            textConverter: CandidateTextConverter(
+                variant: .taiwan,
+                store: MappedOpenCCStore(url: productionOpenCCURL)
+            )
+        )
+        let she: [ZhuyinInputToken] = [
+            .symbol("ㄨ"), .symbol("ㄟ"), .tone(.fourth),
+            .symbol("ㄕ"), .symbol("ㄜ"), .tone(.second),
+            .symbol("ㄇ"), .symbol("ㄜ"), .tone(.neutral),
+        ]
+        let withTones = try await pipeline.candidates(for: she)
+        XCTAssertEqual(withTones.first?.text, "為什麼")
+        let toneless = try await pipeline.candidates(for: she.filter {
+            if case .symbol = $0 { return true }
+            return false
+        })
+        XCTAssertEqual(toneless.first?.text, "為什麼")
+    }
 }
 
 private struct VariantFixtureStore: LexiconStore {

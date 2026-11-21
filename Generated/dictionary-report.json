@@ -1,6 +1,6 @@
 {
   "sourceEntries": 99329,
-  "compiledEntries": 750937,
+  "compiledEntries": 771176,
   "terraCompiledEntries": 99328,
   "duplicateEntries": 1,
   "duplicateEssayEntries": 3,
@@ -16,24 +16,71 @@
   "essayTruncatedEntries": 821,
   "generatedPronunciations": 727602,
   "excludedZeroWeightReadings": 36458,
+  "propagatedReadings": {
+    "sourceWords": 2008,
+    "addedReadings": 20239,
+    "cappedEntries": 16,
+    "examples": [
+      {
+        "text": "八棒十三的罪過",
+        "from": "ㄅㄚ ㄅㄤ ㄕ ㄙㄢ ㄉㄜ ㄗㄨㄟ ㄍㄨㄛ 1421544",
+        "added": "ㄅㄚ ㄅㄤ ㄕ ㄙㄢ ㄉㄜ ㄗㄨㄟ ㄍㄨㄛ 1421545"
+      },
+      {
+        "text": "八棒十三的罪過",
+        "from": "ㄅㄚ ㄅㄤ ㄕ ㄙㄢ ㄉㄧ ㄗㄨㄟ ㄍㄨㄛ 1421244",
+        "added": "ㄅㄚ ㄅㄤ ㄕ ㄙㄢ ㄉㄧ ㄗㄨㄟ ㄍㄨㄛ 1421245"
+      },
+      {
+        "text": "八棒十三的罪過",
+        "from": "ㄅㄚ ㄅㄤ ㄕ ㄙㄢ ㄉㄧ ㄗㄨㄟ ㄍㄨㄛ 1421444",
+        "added": "ㄅㄚ ㄅㄤ ㄕ ㄙㄢ ㄉㄧ ㄗㄨㄟ ㄍㄨㄛ 1421445"
+      },
+      {
+        "text": "把部分",
+        "from": "ㄅㄚ ㄅㄨ ㄈㄣ 341",
+        "added": "ㄅㄚ ㄅㄨ ㄈㄣ 345"
+      },
+      {
+        "text": "把部分",
+        "from": "ㄅㄚ ㄅㄨ ㄈㄣ 441",
+        "added": "ㄅㄚ ㄅㄨ ㄈㄣ 445"
+      },
+      {
+        "text": "巴不得一聲兒",
+        "from": "ㄅㄚ ㄅㄨ ㄉㄜ ㄧ ㄕㄥ ㄦ 142112",
+        "added": "ㄅㄚ ㄅㄨ ㄉㄜ ㄧ ㄕㄥ ㄦ 155112"
+      },
+      {
+        "text": "巴不得一聲兒",
+        "from": "ㄅㄚ ㄅㄨ ㄉㄜ ㄧ ㄕㄥ ㄦ 142115",
+        "added": "ㄅㄚ ㄅㄨ ㄉㄜ ㄧ ㄕㄥ ㄦ 155115"
+      },
+      {
+        "text": "巴不得一聲兒",
+        "from": "ㄅㄚ ㄅㄨ ㄉㄜ ㄧ ㄕㄥ ㄦ 142212",
+        "added": "ㄅㄚ ㄅㄨ ㄉㄜ ㄧ ㄕㄥ ㄦ 155212"
+      }
+    ]
+  },
   "distinctWords": 463351,
   "distinctPinyinSyllables": 421,
   "distinctZhuyinSyllables": 419,
-  "distinctInitialKeys": 130474,
+  "distinctInitialKeys": 131147,
   "initialKeyIntegrity": {
-    "checkedEntries": 750937,
+    "checkedEntries": 771176,
     "syllableCountMismatches": 0
   },
   "maxSyllableCount": 16,
-  "weightedEntries": 727602,
-  "pronunciationWeightedEntries": 421450,
-  "essayWeightedEntries": 727602,
+  "weightedEntries": 747835,
+  "pronunciationWeightedEntries": 435122,
+  "essayWeightedEntries": 747835,
   "normalization": {
     "formula": "log1p(frequency)/log1p(max_frequency)",
     "maximumFrequency": 4822928
   },
   "database": {
-    "bytes": 165117952,
+    "bytes": 171544576,
     "limitBytes": 268435456
   },
   "errors": [],
@@ -158,6 +205,6 @@
       "frequencyMax": 4822928
     }
   },
-  "compilerVersion": "5",
+  "compilerVersion": "6",
   "schemaVersion": 4
 }

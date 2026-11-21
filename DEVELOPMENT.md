@@ -30,7 +30,7 @@ Generated/                     編譯產物（SQLite 詞典、FZGram 語言模�
 - `SQLiteLexiconStore` 以唯讀模式開啟 bundle 內的 SQLite 詞典，只把 400 多個合法無調注音載入記憶體。完整注音查詢走 `base_key`，pattern（exact／initial 混合）查詢由 pattern 推導 `initial_key` 後走索引掃描，掃描量受 scan limit 限制，再逐列套用 exact 條件並在收集滿 result limit 後停止；三種查詢各有具上限的 LRU cache。
 - `UserLearningStore` 在 App Group 的獨立 SQLite 資料庫保存選字次數與 2–8 字新詞；`CombinedLexiconStore` 合併內建及使用者詞條，`UserFrequencyScorer` 對提交至少兩次的詞給予上限 2.5 的成本減免。Extension 無 Full Access 時只嘗試唯讀開啟，資料庫不可用時維持內建詞庫輸入；App 可清除資料，鍵盤查詢時以 SQLite `data_version` 更新計數快照。
 - `DictionaryMatcher` 沿音節格以統一的 pattern expansion 查詢詞庫：完整 edge 產生 `.exact`、單符號無調 edge 產生 `.initial`，同一位置可同時保留兩種解讀，全部 exact 時仍走快速 `exactMatches`；pattern 與查詢結果都會記憶化，混合查詢受 `patternMatchResultLimit`／`patternMatchScanLimit` 限制。
-- `Decoder` 將詞格與 raw 注音音節合併成永遠連通的解碼圖；沒有詞典匹配的片段會以原始注音保留。沒有語言模型時以精確 Top-K DAG 動態規劃輸出穩定排序的候選；有語言模型時改用 librime `Poet` 式的前向 beam search：每個詞以前兩個詞（第一個詞則以游標前文字）為上下文查詢語言模型，每個位置只保留 `beamWidth`（預設 5）個分數最佳且 text／讀音／上下文互異的部分句子，raw 注音音節不計語言模型分數並清空上下文。
+- `Decoder` 將詞格與 raw 注音音節合併成永遠連通的解碼圖；沒有詞典匹配的片段會以原始注音保留。沒有語言模型時以精確 Top-K DAG 動態規劃輸出穩定排序的候選；有語言模型時改用 librime `Poet` 式的前向 beam search：每個詞以前兩個詞（第一個詞則以游標前文字）為上下文查詢語言模型，每個位置只保留 `beamWidth`（預設 5）個分數最佳且 text／讀音／上下文互異的部分句子，另保留 `frequentWordReserve`（預設 1）個最後一個詞 Essay 詞頻最高的部分句子；raw 注音音節不計語言模型分數並清空上下文。保留名額是因為高頻多音字（「爲」在 Terra 中ㄨㄟˊ、ㄨㄟˋ各 50%）的讀音成本會讓它單獨排在許多罕用單音字之後，在語言模型能依上下文加分（「爲」＋「什麼」）之前就被剔除；多保留一條使 10 token 最壞輸入的 Debug p95 約增加 15%。
 - `MappedGramStore` 以 `mmap` 唯讀映射 `flickzhuyin.gram`（FZGram 格式，見 [語言模型編譯](#語言模型編譯)），頁面為可回收的 file-backed clean pages，不計入 Extension 常駐記憶體；查詢先在區塊前綴索引上二分搜尋，再在 16 個 key 的前綴壓縮區塊內循序比對，同時回報是否存在更長的 key 以便提早中止。
 - `OctagramGrammar` 逐行移植 librime-octagram 的 `Octagram::Query`（預設 `collocation_max_length` 4、`collocation_min_length` 3、penalty −12／−12／−24／−18）：取上下文最後 3 字的各後綴與詞的前 3 字各前綴組成 key，分數為 `value / 10000` 加上 collocation 或 weak collocation penalty，句尾另查 `詞$`；每個上下文建立一個 scorer，快取以詞首字開頭的查詢結果。Decoder 與 librime 相同，把 `grammarWeight × (−分數)` 加進每個分段的 cost：沒有搭配的詞、沒有上下文的第一個詞與 raw 注音音節都付出 no-collocation penalty（預設 12），有搭配時較低；這個每段固定成本也讓搜尋偏好較少的分段。
 
@@ -128,6 +128,7 @@ python3 Tools/DictionaryCompiler/compile_dictionary.py build \
 編譯流程：
 
 - 編譯器先編譯 Terra，建立完整詞與單字讀音索引；Essay 詞條優先使用 Terra 明確詞讀音，否則以單字讀音自動組合，每個詞最多保留 16 組讀音，超過上限會記錄於 report。合成時排除該字已有正權重讀音時 Terra 明確標為 `0%` 的讀音，排除數量記於 report 的 `excludedZeroWeightReadings`；Terra 單字本身的 `0%` 讀音仍會保留在詞典中。
+- 讀音延伸（compiler v6）：Terra 常只在短詞上記錄另一種讀音，例如「什麼」有 `she2 me5`（臺灣讀音）與 `shen2 me5`，「爲什麼」「沒什麼」卻只寫 `shen2`，由單字合成的 Essay 詞條也因 `什 she2 0%` 而得不到ㄕㄜˊ。合併後，凡是詞條中嵌入 2–4 字、Terra 列有多種讀音的詞，且該段讀音是其中之一（或整個詞條本身沒有 Terra 明確讀音，屬於單字合成），就補上其他讀音，沿用原詞條的詞頻與讀音權重；嵌入詞由左至右、長者優先、不重疊地挑選。延伸讀音來自 Terra 明確詞條，因此可以超過 16 組的合成上限，但每詞最多 32 組。report 的 `propagatedReadings` 記錄來源詞數、新增讀音數（約 2 萬筆）、達上限的詞數與範例。
 - Essay 詞頻以 `log1p(frequency) / log1p(max_frequency)` 正規化為 `source_weight`，與 Terra 詞條以 `(text, base_key, tone_key)` 合併。Terra 的讀音權重獨立寫入 `pronunciation_weight`（單字讀音下限 5%，合成詞取各字讀音權重乘積，來源未標權重時為 NULL），Runtime 以兩者相加計分。
 - 每個 canonical 讀音另計算 `initial_key`（schema v4）並建立索引，且驗證其分段數等於 `syllable_count`；完整性統計會寫入 report。
 - 無法標音的詞條只會統計在 report；格式錯誤或 hash 不符則會讓 build 失敗。report 也會記錄資料庫大小與編譯時間，資料庫大小有硬上限。
@@ -207,7 +208,7 @@ python3 Tools/DictionaryCompiler/compile_dictionary.py build-opencc \
 
 `ChineseInputPerformanceTests` 與 `DecoderPerformanceTests` 是防止演算法或 I/O 發生災難性退化的寬鬆保護，不代表產品延遲目標。Release 模擬器的 Decoder p95 上限為 100 ms，完整 parser → matcher → decoder Pipeline p95 上限為 250 ms；測試直接 assert 全部樣本的 p95，並輸出 min、平均與 p95 供比較。語言模型 beam search 以 thread CPU time 量測（避免把等待排程的時間算進去），Release p95 上限 100 ms、Debug 500 ms；在 Release 模擬器上 30 個候選、10 token 的最壞輸入約 50 ms。SQLite open、冷／熱查詢、pattern 查詢、parser 與 matcher 也分別設有 Debug／Release 寬鬆門檻，並涵蓋 2、4、8 個連續聲母的 matcher 測試與「每次 pattern query 最多回傳 result limit」的界線。
 
-加入 Essay、讀音 provenance 與聲母索引後 production 資料庫約 165 MB（仍在 256 MB 上限內）。Extension 啟動仍只把音節 inventory 載入記憶體，詞條查詢維持依 `base_key` 與 `syllable_count`、pattern 查詢依 `initial_key` 與 `syllable_count` 使用索引，掃描量與單次回傳數都有硬上限，pattern 結果與掃描列另有具上限的 LRU cache。
+加入 Essay、讀音 provenance、聲母索引與讀音延伸後 production 資料庫約 172 MB（仍在 256 MB 上限內）。Extension 啟動仍只把音節 inventory 載入記憶體，詞條查詢維持依 `base_key` 與 `syllable_count`、pattern 查詢依 `initial_key` 與 `syllable_count` 使用索引，掃描量與單次回傳數都有硬上限，pattern 結果與掃描列另有具上限的 LRU cache。
 
 ## 資源檔案
 

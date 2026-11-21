@@ -32,7 +32,7 @@ final class ProductionDictionaryIntegrationTests: XCTestCase {
         let report = try readJSON(reportURL)
 
         XCTAssertEqual(metadata["schema_version"], "4")
-        XCTAssertEqual(metadata["compiler_version"], "5")
+        XCTAssertEqual(metadata["compiler_version"], "6")
         XCTAssertEqual(metadata["terra_source_repository"], terraManifest["repository"] as? String)
         XCTAssertEqual(metadata["terra_source_commit"], terraManifest["commit"] as? String)
         XCTAssertEqual(metadata["terra_source_sha256"], terraManifest["sha256"] as? String)

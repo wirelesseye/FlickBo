@@ -46,7 +46,7 @@ MAXIMUM_OPENCC_BYTES = 8 * 1024 * 1024
 MAXIMUM_GRAMMAR_BYTES = 64 * 1024 * 1024
 MAXIMUM_GRAMMAR_KEY_CHARACTERS = 8
 SENTENCE_BOUNDARY = "$"
-COMPILER_VERSION = "5"
+COMPILER_VERSION = "6"
 SCHEMA_VERSION = 4
 REQUIRED_HEADER_KEYS = ("name", "version")
 REQUIRED_METADATA_KEYS = (
@@ -74,6 +74,11 @@ SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 SEPARATOR = "\u001f"
 MAXIMUM_PRONUNCIATIONS_PER_WORD = 16
 MAXIMUM_ESSAY_WORD_LENGTH = 16
+# Terra words up to this length whose alternative readings spread to longer entries.
+MAXIMUM_PROPAGATED_WORD_LENGTH = 4
+# Propagated readings come from explicit Terra words, so they may go past the
+# per-word limit that bounds character-by-character composition, up to this.
+MAXIMUM_PRONUNCIATIONS_WITH_PROPAGATION = 2 * MAXIMUM_PRONUNCIATIONS_PER_WORD
 MINIMUM_SINGLE_CHARACTER_PRONUNCIATION_WEIGHT = 0.05
 MAXIMUM_DATABASE_BYTES = 256 * 1024 * 1024
 MAXIMUM_STORED_INTEGER = 9_223_372_036_854_775_807
@@ -765,6 +770,155 @@ def merge_rows(
     return ordered, merged_count, duplicate_pronunciations
 
 
+@dataclass(frozen=True)
+class ReadingPropagation:
+    rows: list[MergedEntry]
+    source_words: int
+    added_readings: int
+    capped_entries: int
+    examples: tuple[dict, ...]
+
+
+def propagate_word_readings(rows: list[MergedEntry], index: TerraIndex) -> ReadingPropagation:
+    """Spread Terra's alternative readings of short words to entries containing them.
+
+    Terra often records a reading only on the short word: 什麼 has both
+    ``she2 me5`` (Taiwan) and ``shen2 me5``, but 爲什麼 and 沒什麼 only list
+    ``shen2``, and composed Essay entries skip the 0% ``she2`` of 什. For every
+    entry whose reading of an embedded word matches one of that word's Terra
+    readings, the other readings are added with the entry's own weights, so
+    the longer word can be typed with either reading. Entries Terra does not
+    list (composed character by character) take the embedded word's readings
+    whatever their own reading of it is.
+    """
+    alternatives: dict[str, tuple[TerraReading, ...]] = {}
+    for text, readings in index.words.items():
+        if not 2 <= len(text) <= MAXIMUM_PROPAGATED_WORD_LENGTH:
+            continue
+        distinct = deduplicate_terra_readings(readings)
+        if len(distinct) >= 2:
+            alternatives[text] = distinct
+
+    readings_by_text: dict[str, set[tuple[tuple[str, ...], tuple[int, ...]]]] = {}
+    for row in rows:
+        readings_by_text.setdefault(row.text, set()).add((row.base_syllables, row.tones))
+
+    added: list[MergedEntry] = []
+    capped = 0
+    capped_texts: set[str] = set()
+    examples: list[dict] = []
+    for row in rows:
+        spans = embedded_alternative_spans(row, alternatives, composed=row.text not in index.words)
+        if not spans:
+            continue
+        existing = readings_by_text[row.text]
+        for bases, tones, lines in expand_spans(row, spans):
+            key = (bases, tones)
+            if key in existing:
+                continue
+            if len(existing) >= MAXIMUM_PRONUNCIATIONS_WITH_PROPAGATION:
+                if row.text not in capped_texts:
+                    capped_texts.add(row.text)
+                    capped += 1
+                break
+            existing.add(key)
+            added.append(
+                replace(
+                    row,
+                    base_syllables=bases,
+                    tones=tones,
+                    terra_source_lines=tuple(sorted(set(row.terra_source_lines) | set(lines))),
+                )
+            )
+            if len(examples) < REPORT_EXAMPLE_LIMIT:
+                examples.append(
+                    {
+                        "text": row.text,
+                        "from": row.base_key.replace(SEPARATOR, " ") + " " + row.tone_key,
+                        "added": SEPARATOR.join(bases).replace(SEPARATOR, " ")
+                        + " "
+                        + "".join(str(tone) for tone in tones),
+                    }
+                )
+    ordered = sorted(
+        rows + added,
+        key=lambda entry: (
+            entry.base_key,
+            entry.tone_key,
+            entry.text,
+            entry.source_kind,
+            entry.terra_source_line or 0,
+            entry.essay_source_line or 0,
+        ),
+    )
+    return ReadingPropagation(
+        rows=ordered,
+        source_words=len(alternatives),
+        added_readings=len(added),
+        capped_entries=capped,
+        examples=tuple(examples),
+    )
+
+
+def deduplicate_terra_readings(readings: tuple[TerraReading, ...]) -> tuple[TerraReading, ...]:
+    seen: set[tuple[tuple[str, ...], tuple[int, ...]]] = set()
+    unique: list[TerraReading] = []
+    for reading in readings:
+        key = (reading.base_syllables, reading.tones)
+        if key not in seen:
+            seen.add(key)
+            unique.append(reading)
+    return tuple(unique)
+
+
+def embedded_alternative_spans(
+    row: MergedEntry, alternatives: dict[str, tuple[TerraReading, ...]], composed: bool = False
+) -> list[tuple[int, tuple[TerraReading, ...]]]:
+    """Non-overlapping embedded words (longest first, left to right) whose
+    reading in ``row`` is one of their Terra readings, or any embedded word
+    when the row's reading was ``composed`` from single characters."""
+    text = row.text
+    if len(text) != row.syllable_count:
+        return []
+    spans: list[tuple[int, tuple[TerraReading, ...]]] = []
+    position = 0
+    while position < len(text):
+        matched = 0
+        longest = min(MAXIMUM_PROPAGATED_WORD_LENGTH, len(text) - position)
+        for length in range(longest, 1, -1):
+            if length == len(text):
+                continue
+            readings = alternatives.get(text[position:position + length])
+            if readings is None:
+                continue
+            current = (
+                row.base_syllables[position:position + length],
+                row.tones[position:position + length],
+            )
+            if composed or any((reading.base_syllables, reading.tones) == current for reading in readings):
+                spans.append((position, readings))
+                matched = length
+                break
+        position += matched or 1
+    return spans
+
+
+def expand_spans(row: MergedEntry, spans: list[tuple[int, tuple[TerraReading, ...]]]):
+    """Every combination of span readings, original combination excluded by the caller."""
+    def visit(index: int, bases: list[str], tones: list[int], lines: tuple[int, ...]):
+        if index == len(spans):
+            yield tuple(bases), tuple(tones), lines
+            return
+        position, readings = spans[index]
+        for reading in readings:
+            length = len(reading.base_syllables)
+            next_bases = bases[:position] + list(reading.base_syllables) + bases[position + length:]
+            next_tones = tones[:position] + list(reading.tones) + tones[position + length:]
+            yield from visit(index + 1, next_bases, next_tones, lines + (reading.source_line,))
+
+    yield from visit(0, list(row.base_syllables), list(row.tones), ())
+
+
 def load_manifest(path: Path) -> dict:
     try:
         manifest = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -1003,6 +1157,8 @@ def build_database(
     rows, merged_count, duplicate_pronunciations = merge_rows(
         terra_rows, annotation.entries, maximum_frequency
     )
+    propagation = propagate_word_readings(rows, index)
+    rows = propagation.rows
 
     inventory = sorted({base for row in rows for base in row.base_syllables})
     max_syllables = max((row.syllable_count for row in rows), default=0)
@@ -1044,6 +1200,12 @@ def build_database(
         "essayTruncatedEntries": annotation.truncated_entries,
         "generatedPronunciations": annotation.generated_pronunciations,
         "excludedZeroWeightReadings": annotation.excluded_zero_weight_readings,
+        "propagatedReadings": {
+            "sourceWords": propagation.source_words,
+            "addedReadings": propagation.added_readings,
+            "cappedEntries": propagation.capped_entries,
+            "examples": list(propagation.examples),
+        },
         "distinctWords": len({row.text for row in rows}),
         "distinctPinyinSyllables": len(distinct_pinyin),
         "distinctZhuyinSyllables": len(inventory),
