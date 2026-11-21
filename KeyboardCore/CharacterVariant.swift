@@ -1,6 +1,7 @@
 import Foundation
 
-/// The region whose character forms (and, for Taiwan, vocabulary) candidates use.
+/// The region whose character forms candidates use. Taiwan also ranks Taiwan
+/// vocabulary by the frequency of the word it replaces (see SQLiteLexiconStore).
 enum CharacterVariant: String, CaseIterable, Sendable {
     case taiwan
     case hongKong
@@ -26,10 +27,5 @@ enum CharacterVariant: String, CaseIterable, Sendable {
         case .mainland: "s2t"
         case .traditional: nil
         }
-    }
-
-    /// Regional vocabulary offered as extra candidates (軟件 -> 軟體).
-    var phraseConversion: String? {
-        self == .taiwan ? "tw-phrases" : nil
     }
 }

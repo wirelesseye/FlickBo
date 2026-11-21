@@ -105,8 +105,6 @@ class UpstreamCaseTests(unittest.TestCase):
             ("t2s", "爲什麼"): "为什么",
             ("tw2t", "為什麼"): "爲什麼",
             ("tw2t", "著作"): "著作",
-            ("tw-phrases", "軟件"): "軟體",
-            ("tw-phrases", "注音"): "注音",
         }
         for (name, text), expected in expectations.items():
             with self.subTest(conversion=name, text=text):

@@ -43,10 +43,10 @@ Generated/                     編譯產物（SQLite 詞典、FZGram 語言模�
 
 ### 地區字形
 
-`CharacterVariant`（臺灣／香港／大陸／傳承字形，存在 App Group 的 `characterVariant`，預設臺灣）決定 `CandidateTextConverter` 使用的 OpenCC 轉換：輸出用 `t2tw`／`t2hk`／`t2s`，讀取前文用 `tw2t`／`hk2t`／`s2t`，臺灣另有 `tw-phrases`（OpenCC `TWPhrases`）。`MappedOpenCCStore` 以 `mmap` 唯讀映射 `flickzhuyin.opencc`，每個轉換步驟是 OpenCC 的 short-circuit 字典群組：在每個位置由群組中第一個有前綴匹配的字典提供最長匹配，沒有匹配的字元原樣保留。
+`CharacterVariant`（臺灣／香港／大陸／傳承字形，存在 App Group 的 `characterVariant`，預設臺灣）決定 `CandidateTextConverter` 使用的 OpenCC 轉換：輸出用 `t2tw`／`t2hk`／`t2s`，讀取前文用 `tw2t`／`hk2t`／`s2t`。`MappedOpenCCStore` 以 `mmap` 唯讀映射 `flickzhuyin.opencc`，每個轉換步驟是 OpenCC 的 short-circuit 字典群組：在每個位置由群組中第一個有前綴匹配的字典提供最長匹配，沒有匹配的字元原樣保留。
 
 - Decoder 一律在傳承字形下運作；`LexiconChineseInputPipeline` 先把游標前文字轉回傳承字形再交給語言模型，排序完成後才把候選轉為所選字形。轉換後文字相同的候選只保留排序較前者，所以「為」會沿用「爲」的高詞頻。
-- 臺灣字形下，若候選有臺灣用詞（`軟件` → `軟體`），會緊接在原候選後加入，沿用原候選的注音與分數。兩岸用詞大多讀音不同，因此不直接取代原候選。
+- 臺灣用詞不在候選階段轉換：兩岸用詞大多讀音不同（軟件 ㄖㄨㄢˇ ㄐㄧㄢˋ、軟體 ㄖㄨㄢˇ ㄊㄧˇ），把「軟體」掛在「軟件」的讀音下並不合理。編譯器改把 OpenCC `TWPhrases` 併入詞庫（見「詞典編譯」），臺灣字形下 `SQLiteLexiconStore(usesTaiwanWeights: true)` 以 `COALESCE(taiwan_source_weight, source_weight)` 取代 Essay 詞頻；pattern 查詢另以部分索引取出該聲母鍵的臺灣權重詞條，與原本依詞頻排序的前 N 筆合併後重新排序，讓掃描上限也依臺灣權重計算。
 - `InputCandidate` 與 `SelectedChunk` 同時保存顯示文字 `text` 與傳承字形 `canonicalText`；文件插入顯示文字，`UserLearningStore` 記錄 `canonicalText`，所以切換字形後學習資料仍然有效，也不需要有歧義的反向轉換。
 - 後續字詞建議同樣以傳承字形查詢後再轉換。字形設定改變時，`KeyboardViewController` 在下一次 `viewWillAppear` 重建 coordinator 與 Pipeline。
 - `flickzhuyin.opencc` 缺失或損毀時記錄錯誤並退回傳承字形，輸入不中斷。
@@ -119,6 +119,8 @@ python3 Tools/DictionaryCompiler/compile_dictionary.py build \
   --terra-manifest Vendor/rime-terra-pinyin/SOURCE.json \
   --essay-source Vendor/rime-essay/essay.txt \
   --essay-manifest Vendor/rime-essay/SOURCE.json \
+  --opencc-source Vendor/opencc \
+  --opencc-manifest Vendor/opencc/SOURCE.json \
   --output Generated/flickzhuyin.sqlite3 \
   --report Generated/dictionary-report.json
 ```
@@ -131,6 +133,7 @@ python3 Tools/DictionaryCompiler/compile_dictionary.py build \
 - 讀音延伸（compiler v6）：Terra 常只在短詞上記錄另一種讀音，例如「什麼」有 `she2 me5`（臺灣讀音）與 `shen2 me5`，「爲什麼」「沒什麼」卻只寫 `shen2`，由單字合成的 Essay 詞條也因 `什 she2 0%` 而得不到ㄕㄜˊ。合併後，凡是詞條中嵌入 2–4 字、Terra 列有多種讀音的詞，且該段讀音是其中之一（或整個詞條本身沒有 Terra 明確讀音，屬於單字合成），就補上其他讀音，沿用原詞條的詞頻與讀音權重；嵌入詞由左至右、長者優先、不重疊地挑選。延伸讀音來自 Terra 明確詞條，因此可以超過 16 組的合成上限，但每詞最多 32 組。report 的 `propagatedReadings` 記錄來源詞數、新增讀音數（約 2 萬筆）、達上限的詞數與範例。
 - 單字讀音權重（compiler v7）：Terra 的單字百分比是粗略的編輯估計，例如「長」為 `chang2 90%`、`zhang3 10%`，但「成長」「長大」「校長」都讀ㄓㄤˇ。編譯器以 Essay 詞頻乘上 Terra 明確詞條的讀音，累計每個字各讀音在詞中的用量（多讀音詞平分詞頻）；單字本身的 Essay 詞頻無法區分讀音，沿用 Terra 百分比：`用量(r) = (詞中(r) + 單用 × terra(r)) / (詞中 + 單用)`，最後取 `max(terra(r), 用量(r))` 再正規化。詞中讀音不一定是單打時的讀音：輕聲（桌子）、變調（一個）與大陸詞讀音（知識）會把本調壓低，因此用量只能提高讀音、不會壓低 Terra 的權重；只有主讀音為輕聲的字（了、的）才計入輕聲詞例；變調字「一」「不」維持 Terra 百分比。只調整有多種讀音且至少一個 Terra 百分比的字（約 750 字），結果同時用於單字詞條與合成詞的讀音乘積，因此「長」的ㄓㄤˇ由 10% 升至約 31%，「長大」的ㄓㄤˇㄉㄚˋ也隨之提高。report 的 `readingPriors` 記錄調整字數與範例字的前後權重。
 - Essay 詞頻以 `log1p(frequency) / log1p(max_frequency)` 正規化為 `source_weight`，與 Terra 詞條以 `(text, base_key, tone_key)` 合併。Terra 的讀音權重（多音字經上述 Essay 用量修正）獨立寫入 `pronunciation_weight`（單字讀音下限 5%，合成詞取各字讀音權重乘積，來源未標權重時為 NULL），Runtime 以兩者相加計分。
+- 臺灣用詞（compiler v8、schema v5）：Essay 主要統計大陸用法，「軟體」（0.44）遠低於「軟件」（0.71）。編譯器讀取 manifest 驗證過的 OpenCC `TWPhrases.txt`（約 810 組，值為 OpenCC 標準繁體，與詞庫字形相同），臺灣用詞的 `taiwan_source_weight` 取 `max(自身詞頻, 對應詞詞頻)`，只在臺灣字形使用；已較常用的臺灣用詞維持 NULL。詞庫缺少的臺灣用詞以 Terra 單字讀音合成（同 Essay 合成詞，之後也參與讀音延伸），`source_kind` 為 `opencc-tw`、`source_weight` 為 0，其他字形下排在最後；含 Terra 無法標音字元的詞（「C肝」「BMW集團」）略過。report 的 `taiwanPhrases` 記錄對應數、調整與新增的詞數（約 360 與 295）、略過數與範例。未指定 `--opencc-source` 時（例如測試 fixture）不加入臺灣用詞。
 - 每個 canonical 讀音另計算 `initial_key`（schema v4）並建立索引，且驗證其分段數等於 `syllable_count`；完整性統計會寫入 report。
 - 無法標音的詞條只會統計在 report；格式錯誤或 hash 不符則會讓 build 失敗。report 也會記錄資料庫大小與編譯時間，資料庫大小有硬上限。
 

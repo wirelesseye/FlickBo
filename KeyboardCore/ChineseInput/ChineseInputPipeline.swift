@@ -45,7 +45,8 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         let store = try SQLiteLexiconStore(
             bundle: bundle,
             resourceName: resourceName,
-            resourceExtension: resourceExtension
+            resourceExtension: resourceExtension,
+            usesTaiwanWeights: characterVariant == .taiwan
         )
         var decoder = decoder
         if decoder.grammar == nil, let grammarResourceExtension {
@@ -236,7 +237,6 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
     /// Converts ranked canonical candidates into the chosen character variant.
     /// Candidates that become identical (爲 and 為 both show as 為 in Taiwan)
     /// keep the better ranked one, so the variant inherits the higher weight.
-    /// Regional vocabulary (軟件 -> 軟體) follows its source candidate.
     private func localized(_ candidates: [InputCandidate]) -> [InputCandidate] {
         guard !textConverter.isIdentity else { return candidates }
         var seen = Set<String>()
@@ -260,11 +260,7 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
                 result.append(candidate)
                 continue
             }
-            let text = textConverter.display(candidate.text)
-            append(candidate, text: text)
-            if let phrase = textConverter.phraseVariant(of: text) {
-                append(candidate, text: phrase)
-            }
+            append(candidate, text: textConverter.display(candidate.text))
         }
         return result
     }

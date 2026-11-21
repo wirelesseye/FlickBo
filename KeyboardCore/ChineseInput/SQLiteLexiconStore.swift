@@ -5,7 +5,7 @@ private let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self
 
 final class SQLiteLexiconStore: LexiconStore, @unchecked Sendable {
     static let defaultCacheCapacity = 256
-    static let schemaVersion: Int64 = 4
+    static let schemaVersion: Int64 = 5
     static let requiredMetadataKeys = [
         "schema_version",
         "terra_source_repository",
@@ -29,12 +29,22 @@ final class SQLiteLexiconStore: LexiconStore, @unchecked Sendable {
     private let database: OpaquePointer
     private let exactStatement: OpaquePointer
     private let patternStatement: OpaquePointer
+    /// Rows of one initial key whose Taiwan weight differs, merged into
+    /// pattern scans so the scan limit sees their Taiwan weight.
+    private let taiwanPatternStatement: OpaquePointer?
     private let inventory: [String]
     private var exactCache: BoundedCache<[SyllableConstraint], [LexiconMatch]>
     private var patternCache: BoundedCache<PatternMatchRequest, [LexiconMatch]>
     private var scanCache: BoundedCache<PatternScanRequest, [ScannedRow]>
 
-    init(url: URL, cacheCapacity: Int = SQLiteLexiconStore.defaultCacheCapacity) throws {
+    /// `usesTaiwanWeights` ranks by `taiwan_source_weight` where the compiler
+    /// set one: Taiwan vocabulary (軟體) gets the frequency of the word it
+    /// replaces (軟件), since Essay mostly counts mainland usage.
+    init(
+        url: URL,
+        cacheCapacity: Int = SQLiteLexiconStore.defaultCacheCapacity,
+        usesTaiwanWeights: Bool = false
+    ) throws {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw LexiconStoreError.databaseMissing(url)
         }
@@ -49,10 +59,11 @@ final class SQLiteLexiconStore: LexiconStore, @unchecked Sendable {
         do {
             try Self.validateSchema(opened)
             inventory = try Self.readInventory(opened)
+            let weight = usesTaiwanWeights ? "COALESCE(taiwan_source_weight, source_weight)" : "source_weight"
             exactStatement = try Self.prepare(
                 opened,
                 sql: """
-                SELECT text, tone_key, source_weight, pronunciation_weight
+                SELECT text, tone_key, \(weight), pronunciation_weight
                 FROM pronunciation
                 WHERE base_key = ? AND syllable_count = ?
                 ORDER BY id
@@ -61,13 +72,23 @@ final class SQLiteLexiconStore: LexiconStore, @unchecked Sendable {
             patternStatement = try Self.prepare(
                 opened,
                 sql: """
-                SELECT text, base_key, tone_key, source_weight, pronunciation_weight
+                SELECT text, base_key, tone_key, \(weight), pronunciation_weight, id
                 FROM pronunciation
                 WHERE initial_key = ? AND syllable_count = ?
                 ORDER BY COALESCE(source_weight, pronunciation_weight) DESC, id
                 LIMIT ?
                 """
             )
+            taiwanPatternStatement = usesTaiwanWeights
+                ? try Self.prepare(
+                    opened,
+                    sql: """
+                    SELECT text, base_key, tone_key, \(weight), pronunciation_weight, id
+                    FROM pronunciation
+                    WHERE initial_key = ? AND syllable_count = ? AND taiwan_source_weight IS NOT NULL
+                    """
+                )
+                : nil
         } catch {
             sqlite3_close(opened)
             throw error
@@ -83,17 +104,21 @@ final class SQLiteLexiconStore: LexiconStore, @unchecked Sendable {
         bundle: Bundle,
         resourceName: String = "flickzhuyin",
         resourceExtension: String = "sqlite3",
-        cacheCapacity: Int = SQLiteLexiconStore.defaultCacheCapacity
+        cacheCapacity: Int = SQLiteLexiconStore.defaultCacheCapacity,
+        usesTaiwanWeights: Bool = false
     ) throws {
         guard let url = bundle.url(forResource: resourceName, withExtension: resourceExtension) else {
             throw LexiconStoreError.resourceNotFound("\(resourceName).\(resourceExtension)")
         }
-        try self.init(url: url, cacheCapacity: cacheCapacity)
+        try self.init(url: url, cacheCapacity: cacheCapacity, usesTaiwanWeights: usesTaiwanWeights)
     }
 
     deinit {
         sqlite3_finalize(exactStatement)
         sqlite3_finalize(patternStatement)
+        if let taiwanPatternStatement {
+            sqlite3_finalize(taiwanPatternStatement)
+        }
         sqlite3_close(database)
     }
 
@@ -278,26 +303,43 @@ final class SQLiteLexiconStore: LexiconStore, @unchecked Sendable {
     }
 
     private func performPatternScan(_ request: PatternScanRequest) throws -> [ScannedRow] {
-        sqlite3_reset(patternStatement)
-        sqlite3_clear_bindings(patternStatement)
-        guard sqlite3_bind_text(patternStatement, 1, request.initialKey, -1, sqliteTransient) == SQLITE_OK,
-              sqlite3_bind_int(patternStatement, 2, Int32(request.syllableCount)) == SQLITE_OK,
-              sqlite3_bind_int(patternStatement, 3, Int32(clamping: request.scanLimit)) == SQLITE_OK
+        let rows = try scan(patternStatement, request: request, limit: request.scanLimit)
+        guard let taiwanPatternStatement else { return rows }
+        let taiwanRows = try scan(taiwanPatternStatement, request: request, limit: nil)
+        guard !taiwanRows.isEmpty else { return rows }
+        // Same order as the SQL, by the Taiwan weight: a reweighted row may
+        // now fall inside the scan limit, or move within it.
+        var seen = Set<Int64>()
+        let merged = (rows + taiwanRows).filter { seen.insert($0.id).inserted }
+        let sorted = merged.sorted { lhs, rhs in
+            let left = lhs.sourceWeight ?? lhs.pronunciationWeight ?? -.infinity
+            let right = rhs.sourceWeight ?? rhs.pronunciationWeight ?? -.infinity
+            return left == right ? lhs.id < rhs.id : left > right
+        }
+        return Array(sorted.prefix(request.scanLimit))
+    }
+
+    private func scan(_ statement: OpaquePointer, request: PatternScanRequest, limit: Int?) throws -> [ScannedRow] {
+        sqlite3_reset(statement)
+        sqlite3_clear_bindings(statement)
+        guard sqlite3_bind_text(statement, 1, request.initialKey, -1, sqliteTransient) == SQLITE_OK,
+              sqlite3_bind_int(statement, 2, Int32(request.syllableCount)) == SQLITE_OK,
+              limit.map({ sqlite3_bind_int(statement, 3, Int32(clamping: $0)) == SQLITE_OK }) ?? true
         else {
             throw Self.queryError(database)
         }
         var rows: [ScannedRow] = []
         while true {
-            let step = sqlite3_step(patternStatement)
+            let step = sqlite3_step(statement)
             if step == SQLITE_DONE {
                 break
             }
             guard step == SQLITE_ROW else {
                 throw Self.queryError(database)
             }
-            guard let textPointer = sqlite3_column_text(patternStatement, 0),
-                  let basePointer = sqlite3_column_text(patternStatement, 1),
-                  let tonePointer = sqlite3_column_text(patternStatement, 2)
+            guard let textPointer = sqlite3_column_text(statement, 0),
+                  let basePointer = sqlite3_column_text(statement, 1),
+                  let tonePointer = sqlite3_column_text(statement, 2)
             else {
                 throw LexiconStoreError.queryFailed("pattern match row contains NULL text, base_key or tone_key")
             }
@@ -319,19 +361,20 @@ final class SQLiteLexiconStore: LexiconStore, @unchecked Sendable {
                 toneIndex = toneKey.index(after: toneIndex)
             }
             let weight: Double?
-            if sqlite3_column_type(patternStatement, 3) == SQLITE_NULL {
+            if sqlite3_column_type(statement, 3) == SQLITE_NULL {
                 weight = nil
             } else {
-                weight = sqlite3_column_double(patternStatement, 3)
+                weight = sqlite3_column_double(statement, 3)
             }
             let pronunciationWeight: Double?
-            if sqlite3_column_type(patternStatement, 4) == SQLITE_NULL {
+            if sqlite3_column_type(statement, 4) == SQLITE_NULL {
                 pronunciationWeight = nil
             } else {
-                pronunciationWeight = sqlite3_column_double(patternStatement, 4)
+                pronunciationWeight = sqlite3_column_double(statement, 4)
             }
             rows.append(
                 ScannedRow(
+                    id: sqlite3_column_int64(statement, 5),
                     text: String(cString: textPointer),
                     bases: bases,
                     tones: tones,
@@ -464,6 +507,7 @@ private struct PatternScanRequest: Hashable {
 }
 
 private struct ScannedRow {
+    let id: Int64
     let text: String
     let bases: [String]
     let tones: [MandarinTone]

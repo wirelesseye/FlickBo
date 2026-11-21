@@ -28,6 +28,7 @@ PRODUCTION_ESSAY_SOURCE = REPOSITORY / "Vendor" / "rime-essay" / "essay.txt"
 PRODUCTION_ESSAY_MANIFEST = REPOSITORY / "Vendor" / "rime-essay" / "SOURCE.json"
 PRODUCTION_DATABASE = REPOSITORY / "Generated" / "flickzhuyin.sqlite3"
 PRODUCTION_REPORT = REPOSITORY / "Generated" / "dictionary-report.json"
+PRODUCTION_OPENCC = REPOSITORY / "Vendor" / "opencc"
 
 HEADER = 'name: test_dict\nversion: "1.0"\nsort: by_weight\nuse_preset_vocabulary: true\n'
 SEPARATOR = "\u001f"
@@ -566,6 +567,88 @@ class ReadingPriorTests(CompilerTestCase):
         self.assertEqual(report["readingPriors"]["adjustedCharacters"], 1)
 
 
+class TaiwanPhraseTests(CompilerTestCase):
+    def write_opencc(self, phrases):
+        directory = self.directory / "opencc"
+        directory.mkdir(exist_ok=True)
+        path = directory / "TWPhrases.txt"
+        path.write_text(phrases, encoding="utf-8")
+        manifest = directory / "SOURCE.json"
+        manifest.write_text(
+            json.dumps(
+                {
+                    "commit": "2" * 40,
+                    "files": {"TWPhrases.txt": {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        return directory, manifest
+
+    def build_taiwan(self, body, essay_body, phrases):
+        source, manifest = self.write_dictionary(body)
+        essay_source, essay_manifest = self.write_essay(essay_body)
+        opencc, opencc_manifest = self.write_opencc(phrases)
+        output = self.directory / "taiwan.sqlite3"
+        report = self.directory / "taiwan.json"
+        build_database(source, manifest, essay_source, essay_manifest, output, report, opencc, opencc_manifest)
+        return output, json.loads(report.read_text(encoding="utf-8"))
+
+    def rows(self, output, text):
+        return self.query(
+            output,
+            "SELECT base_key, tone_key, source_weight, taiwan_source_weight, source_kind "
+            f"FROM pronunciation WHERE text = '{text}' ORDER BY base_key, tone_key",
+        )
+
+    def test_taiwan_words_take_the_source_weight_or_are_added(self):
+        body = "軟\truan3\n件\tjian4\n體\tti3\n中\tzhong1\n間\tjian1\n介\tjie4\n"
+        essay = "軟件\t1000\n軟體\t10\n中間件\t100\n"
+        phrases = "軟件\t軟體\n中間件\t中介軟體\n甲肝\tA肝\n"
+        output, report = self.build_taiwan(body, essay, phrases)
+        software = self.rows(output, "軟件")
+        taiwan_software = self.rows(output, "軟體")
+        self.assertIsNone(software[0][3])
+        self.assertLess(taiwan_software[0][2], software[0][2])
+        self.assertAlmostEqual(taiwan_software[0][3], software[0][2])
+        middleware = self.rows(output, "中介軟體")
+        self.assertEqual(
+            middleware,
+            [(SEPARATOR.join(["ㄓㄨㄥ", "ㄐㄧㄝ", "ㄖㄨㄢ", "ㄊㄧ"]), "1433", 0.0,
+              self.rows(output, "中間件")[0][2], "opencc-tw")],
+        )
+        self.assertEqual(self.rows(output, "A肝"), [])
+        phrases_report = report["taiwanPhrases"]
+        self.assertEqual(phrases_report["pairs"], 3)
+        self.assertEqual(phrases_report["weightedWords"], 1)
+        self.assertEqual(phrases_report["addedWords"], 1)
+        self.assertEqual(phrases_report["untypableWords"], 1)
+        metadata = dict(self.query(output, "SELECT key, value FROM metadata"))
+        self.assertEqual(metadata["opencc_source_commit"], "2" * 40)
+
+    def test_taiwan_word_already_more_frequent_is_unchanged(self):
+        body = "網\twang3\n路\tlu4\n絡\tluo4\n"
+        output, report = self.build_taiwan(body, "網絡\t10\n網路\t100\n", "網絡\t網路\n")
+        self.assertIsNone(self.rows(output, "網路")[0][3])
+        self.assertEqual(report["taiwanWeightedEntries"], 0)
+
+    def test_taiwan_phrases_must_match_the_manifest(self):
+        source, manifest = self.write_dictionary("軟\truan3\n")
+        essay_source, essay_manifest = self.write_essay("")
+        opencc, opencc_manifest = self.write_opencc("軟件\t軟體\n")
+        (opencc / "TWPhrases.txt").write_text("軟件\t軟体\n", encoding="utf-8")
+        with self.assertRaises(CompileFailure):
+            build_database(
+                source, manifest, essay_source, essay_manifest,
+                self.directory / "x.sqlite3", self.directory / "x.json", opencc, opencc_manifest,
+            )
+        with self.assertRaises(CompileFailure):
+            build_database(
+                source, manifest, essay_source, essay_manifest,
+                self.directory / "x.sqlite3", self.directory / "x.json", opencc, None,
+            )
+
+
 class NormalizationTests(unittest.TestCase):
     def test_boundaries(self):
         self.assertEqual(normalize_frequency(0, 100), 0.0)
@@ -695,23 +778,23 @@ class CompilationTests(CompilerTestCase):
     def test_metadata_and_inventory(self):
         output, report = self.build("中\tzhong1\n文\twen2\n", essay_body="中文\t100\n")
         metadata = dict(self.query(output, "SELECT key, value FROM metadata"))
-        self.assertEqual(metadata["schema_version"], "4")
+        self.assertEqual(metadata["schema_version"], "5")
         self.assertEqual(metadata["terra_source_commit"], "0" * 40)
         self.assertEqual(metadata["terra_source_sha256"], report["sources"]["terra"]["sha256"])
         self.assertEqual(metadata["essay_source_commit"], "1" * 40)
         self.assertEqual(metadata["essay_source_sha256"], report["sources"]["essay"]["sha256"])
         self.assertEqual(metadata["entry_count"], str(report["compiledEntries"]))
         self.assertEqual(metadata["dictionary_version"], "1.0")
-        self.assertEqual(metadata["compiler_version"], "7")
+        self.assertEqual(metadata["compiler_version"], "8")
         self.assertEqual(metadata["essay_entry_count"], "1")
         self.assertEqual(metadata["essay_annotated_entry_count"], "1")
         self.assertEqual(metadata["essay_frequency_max"], "100")
         self.assertEqual(metadata["weight_normalization"], "log1p(frequency)/log1p(max_frequency)")
-        self.assertEqual(report["schemaVersion"], 4)
-        self.assertEqual(report["compilerVersion"], "7")
+        self.assertEqual(report["schemaVersion"], 5)
+        self.assertEqual(report["compilerVersion"], "8")
         inventory = [row[0] for row in self.query(output, "SELECT base FROM syllable_inventory ORDER BY base")]
         self.assertEqual(inventory, sorted({"ㄓㄨㄥ", "ㄨㄣ"}))
-        self.assertEqual(self.query(output, "PRAGMA user_version")[0][0], 4)
+        self.assertEqual(self.query(output, "PRAGMA user_version")[0][0], 5)
         self.assertEqual(self.query(output, "PRAGMA page_size")[0][0], 4096)
         self.assertEqual(self.query(output, "PRAGMA integrity_check")[0][0], "ok")
 
@@ -871,8 +954,8 @@ class ProductionDictionaryTests(CompilerTestCase):
         terra_manifest = json.loads(PRODUCTION_TERRA_MANIFEST.read_text(encoding="utf-8"))
         essay_manifest = json.loads(PRODUCTION_ESSAY_MANIFEST.read_text(encoding="utf-8"))
         metadata = dict(self.query(PRODUCTION_DATABASE, "SELECT key, value FROM metadata"))
-        self.assertEqual(metadata["schema_version"], "4")
-        self.assertEqual(metadata["compiler_version"], "7")
+        self.assertEqual(metadata["schema_version"], "5")
+        self.assertEqual(metadata["compiler_version"], "8")
         self.assertEqual(metadata["terra_source_repository"], terra_manifest["repository"])
         self.assertEqual(metadata["terra_source_commit"], terra_manifest["commit"])
         self.assertEqual(metadata["terra_source_sha256"], terra_manifest["sha256"])
@@ -883,6 +966,28 @@ class ProductionDictionaryTests(CompilerTestCase):
         self.assertEqual(metadata["essay_frequency_max"], str(essay_manifest["frequencyMax"]))
         self.assertEqual(metadata["weight_normalization"], "log1p(frequency)/log1p(max_frequency)")
         self.assertEqual(self.query(PRODUCTION_DATABASE, "PRAGMA integrity_check")[0][0], "ok")
+        opencc_manifest = json.loads((PRODUCTION_OPENCC / "SOURCE.json").read_text(encoding="utf-8"))
+        self.assertEqual(metadata["opencc_source_commit"], opencc_manifest["commit"])
+        self.assertEqual(metadata["taiwan_phrases_sha256"], opencc_manifest["files"]["TWPhrases.txt"]["sha256"])
+
+    def test_taiwan_vocabulary_takes_the_weight_of_the_word_it_replaces(self):
+        def weights(text):
+            return self.query(
+                PRODUCTION_DATABASE,
+                "SELECT MAX(source_weight), MAX(taiwan_source_weight) FROM pronunciation WHERE text = ?",
+                (text,),
+            )[0]
+
+        software = weights("軟件")[0]
+        self.assertLess(weights("軟體")[0], software)
+        self.assertAlmostEqual(weights("軟體")[1], software)
+        self.assertIsNone(weights("軟件")[1])
+        added = self.query(
+            PRODUCTION_DATABASE,
+            "SELECT source_weight, taiwan_source_weight, source_kind FROM pronunciation WHERE text = '中介軟體'",
+        )
+        self.assertTrue(added)
+        self.assertTrue(all(row[0] == 0.0 and row[1] is not None and row[2] == "opencc-tw" for row in added))
 
     def test_zero_weight_character_readings_are_not_composed(self):
         composed = self.query(

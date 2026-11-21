@@ -44,7 +44,7 @@ FlickZhuyin 包含由第三方資料轉換而成的中文詞典。以下授權�
 - 授權：Apache License 2.0
 - 授權全文：隨 App 一併提供的 `OpenCC-LICENSE.txt`，或 <https://www.apache.org/licenses/LICENSE-2.0>
 
-使用的原始檔為 `data/dictionary/` 下的 `TWVariants`、`TWVariantsPhrases`、`TWVariantsRevPhrases`、`TWPhrases`、`HKVariants`、`HKVariantsPhrases`、`HKVariantsRevPhrases`、`TSCharacters`、`TSPhrases`、`STCharacters`、`STPhrases` 與 `CJK_Compatibility_Ideographs`。FlickZhuyin 依 OpenCC 的 `reverse.py` 規則產生 `TWVariantsRev` 與 `HKVariantsRev`，只保留每個詞條的預設轉換結果，並將字典與轉換鏈（`t2tw`、`tw2t`、`t2hk`、`hk2t`、`t2s`、`s2t` 及臺灣用詞）重新編排為排序後的二進位檔 `flickzhuyin.opencc`，以 Swift 重新實作 OpenCC 的字典群組最長匹配轉換；未使用 OpenCC 的程式碼。轉換工具及來源 manifest 可在 FlickZhuyin repository 的 `Tools/DictionaryCompiler/opencc_data.py` 與 `Vendor/opencc/` 找到。
+使用的原始檔為 `data/dictionary/` 下的 `TWVariants`、`TWVariantsPhrases`、`TWVariantsRevPhrases`、`TWPhrases`、`HKVariants`、`HKVariantsPhrases`、`HKVariantsRevPhrases`、`TSCharacters`、`TSPhrases`、`STCharacters`、`STPhrases` 與 `CJK_Compatibility_Ideographs`。FlickZhuyin 依 OpenCC 的 `reverse.py` 規則產生 `TWVariantsRev` 與 `HKVariantsRev`，只保留每個詞條的預設轉換結果，並將字典與轉換鏈（`t2tw`、`tw2t`、`t2hk`、`hk2t`、`t2s`、`s2t`）重新編排為排序後的二進位檔 `flickzhuyin.opencc`，以 Swift 重新實作 OpenCC 的字典群組最長匹配轉換；`TWPhrases` 則由編譯器併入 SQLite 詞典，作為臺灣字形下臺灣用詞的詞頻，詞典缺少的臺灣用詞以 Terra Pinyin 讀音標音後加入；未使用 OpenCC 的程式碼。轉換工具及來源 manifest 可在 FlickZhuyin repository 的 `Tools/DictionaryCompiler/opencc_data.py` 與 `Vendor/opencc/` 找到。
 
 ## CC-CEDICT-derived dictionary data
 

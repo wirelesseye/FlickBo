@@ -24,7 +24,7 @@ final class OpenCCConverterTests: XCTestCase {
         XCTAssertGreaterThan(checked, 200)
         XCTAssertEqual(
             Set(converters.keys),
-            ["t2tw", "tw2t", "t2hk", "hk2t", "t2s", "s2t", "tw-phrases"]
+            ["t2tw", "tw2t", "t2hk", "hk2t", "t2s", "s2t"]
         )
     }
 
@@ -45,16 +45,13 @@ final class OpenCCConverterTests: XCTestCase {
         XCTAssertEqual(converter.convert("ㄓㄨㄥˉ😀爲"), "ㄓㄨㄥˉ😀為")
     }
 
-    func testCandidateTextConverterRoundTripsAndOffersTaiwanPhrases() throws {
+    func testCandidateTextConverterRoundTrips() throws {
         let store = try MappedOpenCCStore(url: productionOpenCCURL)
         let taiwan = try CandidateTextConverter(variant: .taiwan, store: store)
         XCTAssertEqual(taiwan.display("爲什麼"), "為什麼")
         XCTAssertEqual(taiwan.canonical("為什麼"), "爲什麼")
-        XCTAssertEqual(taiwan.phraseVariant(of: "軟件"), "軟體")
-        XCTAssertNil(taiwan.phraseVariant(of: "注音"))
+        XCTAssertEqual(taiwan.display("軟件"), "軟件", "vocabulary is ranked in the lexicon, not converted")
 
-        let hongKong = try CandidateTextConverter(variant: .hongKong, store: store)
-        XCTAssertNil(hongKong.phraseVariant(of: "軟件"))
         XCTAssertEqual(try CandidateTextConverter(variant: .mainland, store: store).display("爲什麼"), "为什么")
         let traditional = try CandidateTextConverter(variant: .traditional, store: store)
         XCTAssertTrue(traditional.isIdentity)
@@ -86,10 +83,6 @@ final class OpenCCConverterTests: XCTestCase {
 
 final class CharacterVariantPipelineTests: ChineseInputTestCase {
     private let wei = [SyllableConstraint(base: "ㄨㄟ", tone: .second)]
-    private let ruanjian = [
-        SyllableConstraint(base: "ㄖㄨㄢ", tone: .third),
-        SyllableConstraint(base: "ㄐㄧㄢ", tone: .fourth),
-    ]
 
     private func pipeline(
         _ variant: CharacterVariant,
@@ -129,17 +122,13 @@ final class CharacterVariantPipelineTests: ChineseInputTestCase {
         XCTAssertEqual(words.first?.canonicalText, "爲")
     }
 
-    func testTaiwanAddsVocabularyRightAfterItsSource() async throws {
-        let words = try await pipeline(.taiwan).candidates(for: ruanjianTokens).filter { !$0.isRawFallback }
-        let index = try XCTUnwrap(words.firstIndex { $0.text == "軟件" })
-        XCTAssertEqual(words[index + 1].text, "軟體")
-        XCTAssertEqual(words[index + 1].canonicalText, "軟件")
-        XCTAssertEqual(words[index + 1].pronunciation, ruanjian)
-    }
-
-    func testHongKongDoesNotAddTaiwanVocabulary() async throws {
-        let words = try await pipeline(.hongKong).candidates(for: ruanjianTokens)
-        XCTAssertFalse(words.contains { $0.text == "軟體" })
+    func testNoVariantOffersVocabularyUnderAnotherWordsReading() async throws {
+        // 軟體 is read ㄖㄨㄢˇ ㄊㄧˇ; typing 軟件's ㄖㄨㄢˇ ㄐㄧㄢˋ never offers it.
+        for variant in CharacterVariant.allCases {
+            let words = try await pipeline(variant).candidates(for: ruanjianTokens)
+            XCTAssertTrue(words.contains { $0.canonicalText == "軟件" }, "\(variant)")
+            XCTAssertFalse(words.contains { $0.canonicalText == "軟體" || $0.text == "軟體" }, "\(variant)")
+        }
     }
 
     func testLearningStoresCanonicalText() async throws {
@@ -181,6 +170,40 @@ final class CharacterVariantPipelineTests: ChineseInputTestCase {
 }
 
 final class CharacterVariantProductionTests: XCTestCase {
+    private let ruanjian = [SyllableConstraint(base: "ㄖㄨㄢ"), SyllableConstraint(base: "ㄐㄧㄢ")]
+    private let ruanti = [SyllableConstraint(base: "ㄖㄨㄢ"), SyllableConstraint(base: "ㄊㄧ")]
+
+    func testTaiwanStoreRanksTaiwanVocabularyByTheWordItReplaces() throws {
+        let databaseURL = repositoryRoot.appendingPathComponent("Generated/flickzhuyin.sqlite3")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: databaseURL.path), "production dictionary not built")
+        let plain = try SQLiteLexiconStore(url: databaseURL)
+        let taiwan = try SQLiteLexiconStore(url: databaseURL, usesTaiwanWeights: true)
+        func weight(_ store: SQLiteLexiconStore, _ text: String, _ syllables: [SyllableConstraint]) throws -> Double {
+            try XCTUnwrap(try store.exactMatches(for: syllables).first { $0.text == text }?.sourceWeight)
+        }
+        let software = try weight(plain, "軟件", ruanjian)
+        XCTAssertLessThan(try weight(plain, "軟體", ruanti), software)
+        XCTAssertEqual(try weight(taiwan, "軟體", ruanti), software, accuracy: 1e-12)
+        XCTAssertEqual(try weight(taiwan, "軟件", ruanjian), software, accuracy: 1e-12)
+        // Added Taiwan words stay last outside Taiwan forms.
+        let middleware = [
+            SyllableConstraint(base: "ㄓㄨㄥ"), SyllableConstraint(base: "ㄐㄧㄝ"),
+            SyllableConstraint(base: "ㄖㄨㄢ"), SyllableConstraint(base: "ㄊㄧ"),
+        ]
+        XCTAssertEqual(try weight(plain, "中介軟體", middleware), 0)
+        XCTAssertGreaterThan(try weight(taiwan, "中介軟體", middleware), 0.3)
+
+        // Abbreviated input scans by weight with a limit; the Taiwan weight counts there too.
+        let patterns: [SyllableMatchPattern] = [.initial("ㄖ"), .initial("ㄊ")]
+        let taiwanMatches = try taiwan.patternMatches(for: patterns, resultLimit: 64, scanLimit: 512)
+        let plainMatches = try plain.patternMatches(for: patterns, resultLimit: 64, scanLimit: 512)
+        let taiwanIndex = try XCTUnwrap(taiwanMatches.firstIndex { $0.text == "軟體" })
+        XCTAssertLessThan(taiwanIndex, plainMatches.firstIndex { $0.text == "軟體" } ?? Int.max)
+        XCTAssertEqual(try XCTUnwrap(taiwanMatches[taiwanIndex].sourceWeight), software, accuracy: 1e-12)
+        let taiwanWeights = taiwanMatches.map { $0.sourceWeight ?? $0.pronunciationWeight ?? -1 }
+        XCTAssertEqual(taiwanWeights, taiwanWeights.sorted(by: >))
+    }
+
     func testProductionLexiconPrefersRegionalForms() async throws {
         let databaseURL = repositoryRoot.appendingPathComponent("Generated/flickzhuyin.sqlite3")
         try XCTSkipUnless(FileManager.default.fileExists(atPath: databaseURL.path), "production dictionary not built")

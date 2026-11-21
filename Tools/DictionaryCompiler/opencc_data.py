@@ -53,6 +53,8 @@ SOURCE_DICTIONARIES = (
     "STPhrases",
     "TSCharacters",
     "TSPhrases",
+    # Not a conversion step: compile_dictionary.py turns it into Taiwan
+    # vocabulary weights in the lexicon.
     "TWPhrases",
     "TWVariants",
     "TWVariantsPhrases",
@@ -76,8 +78,6 @@ CONVERSIONS: dict[str, tuple[tuple[str, ...], ...]] = {
     "hk2t": (NORMALIZATION, ("HKVariantsRevPhrases", "HKVariantsRev")),
     "t2s": (NORMALIZATION, ("TSPhrases", "TSCharacters")),
     "s2t": (NORMALIZATION, ("STPhrases", "STCharacters")),
-    # Taiwan vocabulary hints (軟件 -> 軟體); applied after t2tw.
-    "tw-phrases": (("TWPhrases",),),
 }
 
 
@@ -317,9 +317,6 @@ EXTRA_GOLDEN_INPUTS = (
     ("t2hk", "爲什麼"),
     ("t2s", "爲什麼"),
     ("s2t", "为什么"),
-    ("tw-phrases", "軟件"),
-    ("tw-phrases", "網絡信息"),
-    ("tw-phrases", "注音"),
 )
 
 

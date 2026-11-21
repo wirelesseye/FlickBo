@@ -287,27 +287,24 @@ struct OpenCCConverter: @unchecked Sendable {
 
 /// Converts between the lexicon's canonical text and what the user sees.
 struct CandidateTextConverter: Sendable {
-    static let identity = CandidateTextConverter(output: nil, context: nil, phrases: nil)
+    static let identity = CandidateTextConverter(output: nil, context: nil)
 
     private let output: OpenCCConverter?
     private let context: OpenCCConverter?
-    private let phrases: OpenCCConverter?
 
-    private init(output: OpenCCConverter?, context: OpenCCConverter?, phrases: OpenCCConverter?) {
+    private init(output: OpenCCConverter?, context: OpenCCConverter?) {
         self.output = output
         self.context = context
-        self.phrases = phrases
     }
 
     init(variant: CharacterVariant, store: MappedOpenCCStore) throws {
         try self.init(
             output: variant.outputConversion.map(store.converter(named:)),
-            context: variant.contextConversion.map(store.converter(named:)),
-            phrases: variant.phraseConversion.map(store.converter(named:))
+            context: variant.contextConversion.map(store.converter(named:))
         )
     }
 
-    var isIdentity: Bool { output == nil && phrases == nil }
+    var isIdentity: Bool { output == nil }
 
     func display(_ canonical: String) -> String {
         output?.convert(canonical) ?? canonical
@@ -315,11 +312,5 @@ struct CandidateTextConverter: Sendable {
 
     func canonical(_ display: String) -> String {
         context?.convert(display) ?? display
-    }
-
-    /// The regional vocabulary form of an already converted text, when it differs.
-    func phraseVariant(of display: String) -> String? {
-        guard let converted = phrases?.convert(display), converted != display else { return nil }
-        return converted
     }
 }

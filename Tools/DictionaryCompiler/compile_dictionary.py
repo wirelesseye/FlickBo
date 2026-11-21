@@ -20,6 +20,7 @@ from opencc_data import (
     format_golden as format_opencc_golden,
     golden_rows as opencc_golden_rows,
     load_dictionaries as load_opencc_dictionaries,
+    parse_dictionary_text as parse_opencc_dictionary_text,
     write_fzopencc,
 )
 from octagram import FZGRAM_DEFAULT_BLOCK_SIZE, FZGram, GramFormatError, read_gram, write_fzgram
@@ -46,8 +47,8 @@ MAXIMUM_OPENCC_BYTES = 8 * 1024 * 1024
 MAXIMUM_GRAMMAR_BYTES = 64 * 1024 * 1024
 MAXIMUM_GRAMMAR_KEY_CHARACTERS = 8
 SENTENCE_BOUNDARY = "$"
-COMPILER_VERSION = "7"
-SCHEMA_VERSION = 4
+COMPILER_VERSION = "8"
+SCHEMA_VERSION = 5
 REQUIRED_HEADER_KEYS = ("name", "version")
 REQUIRED_METADATA_KEYS = (
     "schema_version",
@@ -92,6 +93,8 @@ WEIGHT_NORMALIZATION = "log1p(frequency)/log1p(max_frequency)"
 SOURCE_KIND_TERRA = "terra"
 SOURCE_KIND_ESSAY = "essay"
 SOURCE_KIND_MERGED = "terra+essay"
+SOURCE_KIND_OPENCC_TAIWAN = "opencc-tw"
+TAIWAN_PHRASES_FILE = "TWPhrases.txt"
 
 SCHEMA = """
 CREATE TABLE metadata (
@@ -112,11 +115,12 @@ CREATE TABLE pronunciation (
     initial_key       TEXT NOT NULL,
     source_weight     REAL,
     pronunciation_weight REAL,
-    source_kind       TEXT NOT NULL CHECK (source_kind IN ('terra', 'essay', 'terra+essay')),
+    source_kind       TEXT NOT NULL CHECK (source_kind IN ('terra', 'essay', 'terra+essay', 'opencc-tw')),
     terra_source_line INTEGER,
     terra_source_lines TEXT NOT NULL,
     essay_source_line INTEGER,
     raw_frequency     INTEGER,
+    taiwan_source_weight REAL,
     UNIQUE(text, base_key, tone_key)
 );
 
@@ -129,6 +133,10 @@ ON pronunciation(
     syllable_count,
     COALESCE(source_weight, pronunciation_weight) DESC
 );
+
+CREATE INDEX pronunciation_taiwan_initial_key
+ON pronunciation(initial_key, syllable_count)
+WHERE taiwan_source_weight IS NOT NULL;
 """
 
 
@@ -242,6 +250,9 @@ class MergedEntry:
     terra_source_lines: tuple[int, ...]
     essay_source_line: int | None
     raw_frequency: int | None
+    # Weight used when candidates are shown in Taiwan forms; see
+    # integrate_taiwan_phrases. None means source_weight applies.
+    taiwan_source_weight: float | None = None
 
     @property
     def base_key(self) -> str:
@@ -908,6 +919,138 @@ class ReadingPropagation:
     examples: tuple[dict, ...]
 
 
+@dataclass(frozen=True)
+class TaiwanPhraseIntegration:
+    rows: list[MergedEntry]
+    pairs: int
+    weighted_words: int
+    added_words: int
+    added_readings: int
+    unweighted_sources: int
+    untypable_words: int
+    examples: tuple[dict, ...]
+    untypable_examples: tuple[dict, ...]
+
+
+def parse_taiwan_phrases(path: Path) -> list[tuple[str, str]]:
+    """(OpenCC Standard Traditional word, Taiwan word) pairs from TWPhrases."""
+    try:
+        dictionary = parse_opencc_dictionary_text(path.read_text(encoding="utf-8"), str(path))
+    except OpenCCFormatError as error:
+        raise CompileFailure(str(error)) from error
+    return [
+        (source, taiwan)
+        for source, values in dictionary.entries.items()
+        for taiwan in values
+        if taiwan != source
+    ]
+
+
+def integrate_taiwan_phrases(
+    rows: list[MergedEntry],
+    index: TerraIndex,
+    pairs: list[tuple[str, str]],
+) -> TaiwanPhraseIntegration:
+    """Give Taiwan vocabulary the frequency of the word it replaces.
+
+    Essay counts mostly mainland usage, so 軟體 (0.44) trails 軟件 (0.71)
+    although Taiwan writers use 軟體. For each OpenCC TWPhrases pair the Taiwan
+    word gets ``taiwan_source_weight = max(its own weight, the source word's)``,
+    which the keyboard uses in place of ``source_weight`` only when showing
+    Taiwan forms. The two words are read differently (ㄖㄨㄢˇ ㄊㄧˇ, ㄖㄨㄢˇ
+    ㄐㄧㄢˋ), so each keeps its own pronunciation. Taiwan words missing from the
+    lexicon are added with readings composed from Terra's characters, like
+    composed Essay entries; their ``source_weight`` is 0 so they stay last in
+    other variants. Words with characters Terra cannot read (C肝) are skipped.
+    TWPhrases values use OpenCC Standard Traditional characters, the lexicon's
+    own form, so no conversion is needed.
+    """
+    rows = list(rows)
+    positions: dict[str, list[int]] = {}
+    for position, row in enumerate(rows):
+        positions.setdefault(row.text, []).append(position)
+
+    def weight_of(text: str) -> float | None:
+        weights = [
+            rows[position].source_weight
+            for position in positions.get(text, ())
+            if rows[position].source_weight is not None
+        ]
+        return max(weights, default=None)
+
+    targets: dict[str, tuple[float | None, str]] = {}
+    for source, taiwan in pairs:
+        weight = weight_of(source)
+        previous = targets.get(taiwan)
+        if previous is None or (weight is not None and (previous[0] is None or weight > previous[0])):
+            targets[taiwan] = (weight, source)
+
+    added: list[MergedEntry] = []
+    weighted_words = 0
+    added_words = 0
+    unweighted_sources = 0
+    untypable_words = 0
+    examples: list[dict] = []
+    untypable_examples: list[dict] = []
+    for taiwan, (weight, source) in sorted(targets.items()):
+        if weight is None:
+            unweighted_sources += 1
+        existing = positions.get(taiwan)
+        if existing:
+            own = weight_of(taiwan)
+            if weight is None or (own is not None and own >= weight):
+                continue
+            for position in existing:
+                rows[position] = replace(rows[position], taiwan_source_weight=weight)
+            weighted_words += 1
+            if len(examples) < REPORT_EXAMPLE_LIMIT:
+                examples.append(
+                    {"text": taiwan, "source": source, "weight": own, "taiwanWeight": weight}
+                )
+            continue
+        if len(taiwan) > MAXIMUM_ESSAY_WORD_LENGTH or any(
+            character not in index.characters for character in taiwan
+        ):
+            untypable_words += 1
+            if len(untypable_examples) < REPORT_EXAMPLE_LIMIT:
+                untypable_examples.append({"text": taiwan, "source": source})
+            continue
+        reading_lists = [readings_for_composition(index.characters[character]) for character in taiwan]
+        readings = deduplicate_readings(
+            compose_readings(reading_lists, MAXIMUM_PRONUNCIATIONS_PER_WORD + 1)
+        )[:MAXIMUM_PRONUNCIATIONS_PER_WORD]
+        for reading in readings:
+            added.append(
+                MergedEntry(
+                    taiwan,
+                    reading.base_syllables,
+                    reading.tones,
+                    0.0,
+                    reading.pronunciation_weight,
+                    SOURCE_KIND_OPENCC_TAIWAN,
+                    None,
+                    reading.terra_lines,
+                    None,
+                    None,
+                    taiwan_source_weight=weight,
+                )
+            )
+        added_words += 1
+        if len(examples) < REPORT_EXAMPLE_LIMIT:
+            examples.append({"text": taiwan, "source": source, "weight": None, "taiwanWeight": weight})
+    return TaiwanPhraseIntegration(
+        rows=rows + added,
+        pairs=len(pairs),
+        weighted_words=weighted_words,
+        added_words=added_words,
+        added_readings=len(added),
+        unweighted_sources=unweighted_sources,
+        untypable_words=untypable_words,
+        examples=tuple(examples),
+        untypable_examples=tuple(untypable_examples),
+    )
+
+
 def propagate_word_readings(rows: list[MergedEntry], index: TerraIndex) -> ReadingPropagation:
     """Spread Terra's alternative readings of short words to entries containing them.
 
@@ -1194,8 +1337,9 @@ def write_database(
         connection.executemany(
             "INSERT INTO pronunciation ("
             "text, syllable_count, base_key, tone_key, initial_key, source_weight, pronunciation_weight,"
-            " source_kind, terra_source_line, terra_source_lines, essay_source_line, raw_frequency"
-            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " source_kind, terra_source_line, terra_source_lines, essay_source_line, raw_frequency,"
+            " taiwan_source_weight"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 (
                     row.text,
@@ -1210,6 +1354,7 @@ def write_database(
                     json.dumps(row.terra_source_lines, separators=(",", ":")),
                     row.essay_source_line,
                     row.raw_frequency,
+                    row.taiwan_source_weight,
                 )
                 for row in rows
             ],
@@ -1233,8 +1378,28 @@ def build_database(
     essay_manifest_path: Path,
     output_path: Path,
     report_path: Path,
+    opencc_source_directory: Path | None = None,
+    opencc_manifest_path: Path | None = None,
 ) -> BuildOutput:
     terra_manifest = load_manifest(terra_manifest_path)
+    taiwan_phrases: list[tuple[str, str]] | None = None
+    taiwan_phrases_sha256 = ""
+    opencc_commit = ""
+    if (opencc_source_directory is None) != (opencc_manifest_path is None):
+        raise CompileFailure("OpenCC source directory and manifest must be given together")
+    if opencc_source_directory is not None and opencc_manifest_path is not None:
+        opencc_manifest = load_manifest(opencc_manifest_path)
+        opencc_commit = str(opencc_manifest.get("commit", ""))
+        record = (opencc_manifest.get("files") or {}).get(TAIWAN_PHRASES_FILE)
+        if not validate_commit(opencc_commit) or not isinstance(record, dict):
+            raise CompileFailure(f"{opencc_manifest_path}: missing commit or {TAIWAN_PHRASES_FILE}")
+        phrases_path = opencc_source_directory / TAIWAN_PHRASES_FILE
+        taiwan_phrases_sha256 = sha256_bytes(phrases_path.read_bytes())
+        if taiwan_phrases_sha256 != record.get("sha256"):
+            raise CompileFailure(
+                f"{phrases_path}: sha256 {taiwan_phrases_sha256} does not match manifest {record.get('sha256')}"
+            )
+        taiwan_phrases = parse_taiwan_phrases(phrases_path)
     essay_manifest = load_manifest(essay_manifest_path)
     verify_manifest_contract(
         terra_manifest, terra_manifest_path, terra_source_path, "dictionaryPath"
@@ -1287,6 +1452,10 @@ def build_database(
     rows, merged_count, duplicate_pronunciations = merge_rows(
         terra_rows, annotation.entries, maximum_frequency, reading_priors.weights
     )
+    taiwan = None
+    if taiwan_phrases is not None:
+        taiwan = integrate_taiwan_phrases(rows, index, taiwan_phrases)
+        rows = taiwan.rows
     propagation = propagate_word_readings(rows, index)
     rows = propagation.rows
 
@@ -1305,6 +1474,9 @@ def build_database(
         len(rows),
         max_syllables,
     )
+    if taiwan is not None:
+        metadata["opencc_source_commit"] = opencc_commit
+        metadata["taiwan_phrases_sha256"] = taiwan_phrases_sha256
     database_bytes = write_database(output_path, rows, inventory, metadata)
     if len(database_bytes) > MAXIMUM_DATABASE_BYTES:
         Path(output_path).unlink(missing_ok=True)
@@ -1334,6 +1506,19 @@ def build_database(
             "adjustedCharacters": reading_priors.adjusted_characters,
             "examples": list(reading_priors.examples),
         },
+        "taiwanPhrases": None
+        if taiwan is None
+        else {
+            "pairs": taiwan.pairs,
+            "weightedWords": taiwan.weighted_words,
+            "addedWords": taiwan.added_words,
+            "addedReadings": taiwan.added_readings,
+            "unweightedSources": taiwan.unweighted_sources,
+            "untypableWords": taiwan.untypable_words,
+            "examples": list(taiwan.examples),
+            "untypableExamples": list(taiwan.untypable_examples),
+        },
+        "taiwanWeightedEntries": sum(1 for row in rows if row.taiwan_source_weight is not None),
         "propagatedReadings": {
             "sourceWords": propagation.source_words,
             "addedReadings": propagation.added_readings,
@@ -1642,6 +1827,8 @@ def command_build(args: argparse.Namespace) -> int:
             Path(args.essay_manifest),
             Path(args.output),
             Path(args.report),
+            Path(args.opencc_source) if args.opencc_source else None,
+            Path(args.opencc_manifest) if args.opencc_manifest else None,
         )
     except CompileFailure as failure:
         print("build: failed:", file=sys.stderr)
@@ -1838,6 +2025,8 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("--essay-manifest", required=True)
     build.add_argument("--output", required=True)
     build.add_argument("--report", required=True)
+    build.add_argument("--opencc-source", help="OpenCC dictionary directory, for Taiwan vocabulary weights")
+    build.add_argument("--opencc-manifest", help="OpenCC SOURCE.json listing TWPhrases.txt")
     build.set_defaults(func=command_build)
 
     fetch_octagram = subparsers.add_parser(
