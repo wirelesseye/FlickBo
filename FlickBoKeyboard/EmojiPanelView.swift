@@ -1,7 +1,7 @@
 import UIKit
 
-/// Emoji palette shown in place of the keys. The top bar holds emoji search
-/// and the symbol kinds (emoji, symbols, kaomoji); only emoji work for now.
+/// Emoji palette shown in place of the keys. The top bar opens emoji search
+/// and holds the symbol kinds (emoji, symbols, kaomoji); only emoji work for now.
 /// The bottom bar returns to the keys, jumps between emoji categories and
 /// deletes. The grid scrolls through every category, and the bottom bar
 /// follows the category being shown.
@@ -13,8 +13,12 @@ final class EmojiPanelView: UIView {
         static let emojiFontSize: CGFloat = 30
     }
 
+    /// Shared with the search field so both magnifiers are the same size.
+    static let searchSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 12)
+
     var onSelect: ((String) -> Void)?
     var onBack: (() -> Void)?
+    var onSearch: (() -> Void)?
 
     private let sections: [EmojiSection]
     private let collectionView: UICollectionView
@@ -70,10 +74,10 @@ final class EmojiPanelView: UIView {
     }
 
     private func makeTopBar() -> UIView {
-        // Search is reserved for later; shown so the layout is in place.
         var searchConfiguration = UIButton.Configuration.filled()
         searchConfiguration.image = UIImage(systemName: "magnifyingglass")
         searchConfiguration.imagePadding = 6
+        searchConfiguration.preferredSymbolConfigurationForImage = Self.searchSymbolConfiguration
         searchConfiguration.title = "搜尋繪文字"
         searchConfiguration.baseBackgroundColor = KeyboardButton.standardKeyColor
         searchConfiguration.baseForegroundColor = .secondaryLabel
@@ -86,8 +90,8 @@ final class EmojiPanelView: UIView {
         }
         let search = UIButton(configuration: searchConfiguration)
         search.contentHorizontalAlignment = .leading
-        search.isEnabled = false
-        search.accessibilityLabel = "搜尋繪文字（尚未提供）"
+        search.accessibilityLabel = "搜尋繪文字"
+        search.addAction(UIAction { [weak self] _ in self?.onSearch?() }, for: .touchUpInside)
 
         let kinds: [(title: String?, image: String?, label: String, isActive: Bool)] = [
             (nil, "face.smiling", "繪文字", true),

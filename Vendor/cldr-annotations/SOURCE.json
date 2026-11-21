@@ -1,0 +1,23 @@
+{
+  "repository": "https://github.com/unicode-org/cldr",
+  "release": "release-49",
+  "commit": "96e54b273d2da4ec6fbad350ba19ff23fa24a588",
+  "formatVersion": 1,
+  "files": {
+    "annotations-zh_Hant.xml": {
+      "path": "common/annotations/zh_Hant.xml",
+      "sha256": "af3512dfbb82e71d2d4dc2ca2fa42c62d689cc5457639fabca84b4f555e7cda7"
+    },
+    "annotationsDerived-zh_Hant.xml": {
+      "path": "common/annotationsDerived/zh_Hant.xml",
+      "sha256": "b8864433bc633715239a8bd93834f322b10fb97561746148ebe74ce548b0d3e5"
+    },
+    "CLDR-LICENSE.txt": {
+      "path": "LICENSE",
+      "sha256": "65eb33419e22a297550a811b5b535f5e532f9a7e0114b516c0ea18afd53c3804"
+    }
+  },
+  "annotationCount": 1975,
+  "derivedAnnotationCount": 2386,
+  "retrievedAt": "2026-11-21T11:36:21Z"
+}

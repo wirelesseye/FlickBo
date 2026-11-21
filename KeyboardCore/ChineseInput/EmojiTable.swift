@@ -39,6 +39,9 @@ struct EmojiTable: Sendable {
 
     var wordCount: Int { emojiByWord.count }
 
+    /// Every word with its emoji, for searching.
+    var words: [String: [String]] { emojiByWord }
+
     func emoji(for word: String) -> [String] {
         emojiByWord[word] ?? []
     }

@@ -36,6 +36,16 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     private var isShowingEmojiPanel = false
     private var emojiCatalog: EmojiCatalog?
     private let recentEmoji = RecentEmojiStore(defaults: .standard)
+    /// Emoji search shows the keys with a search field on top; document
+    /// effects go to `emojiSearchQuery` instead of the host app meanwhile.
+    private var isSearchingEmoji = false
+    private let emojiSearchQuery = EmojiSearchQuery()
+    private lazy var searchEffectApplier = DocumentEffectApplier(client: emojiSearchQuery)
+    private var emojiSearchIndex: EmojiSearchIndex?
+    private var emojiSearchConverter: (variant: CharacterVariant, converter: CandidateTextConverter)?
+    private var lastEmojiSearch: (query: String, results: [String])?
+    private weak var emojiSearchField: EmojiSearchFieldView?
+    private weak var emojiSearchResults: EmojiSearchResultsView?
     /// The variant in use. Kept here so the toolbar menu still works when the
     /// App Group cannot be written; `settingsCharacterVariant` notices changes
     /// made in the app.
@@ -112,6 +122,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         cursorDragAnchorX = nil
         toneButton = nil
         punctuationButton = nil
+        emojiSearchField = nil
+        emojiSearchResults = nil
         isCandidateListExpanded = false
         engine.characterWidth = characterWidth(for: engine.mode)
 
@@ -138,7 +150,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     private func buildABCKeyboard() {
         let mainStack = pinnedVerticalStack(spacing: 7)
         // No candidates in ABC mode, so the bar always shows the toolbar.
-        mainStack.addArrangedSubview(makeCandidateBar())
+        addTopArea(to: mainStack)
 
         let keyboardStack = UIStackView()
         keyboardStack.axis = .vertical
@@ -191,6 +203,38 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         return candidateBar
     }
 
+    /// The candidate bar, or while searching emoji, the search field above a
+    /// row where candidates cover the results while composing.
+    private func addTopArea(to stack: UIStackView) {
+        let candidateBar = makeCandidateBar()
+        guard isSearchingEmoji else {
+            stack.addArrangedSubview(candidateBar)
+            return
+        }
+        let field = EmojiSearchFieldView()
+        field.onBack = { [weak self] in self?.closeEmojiSearch() }
+        field.onClear = { [weak self] in self?.clearEmojiSearch() }
+        field.heightAnchor.constraint(equalToConstant: Self.emojiSearchFieldHeight).isActive = true
+        let results = EmojiSearchResultsView()
+        results.onSelect = { [weak self] emoji in self?.insertSearchedEmoji(emoji) }
+        let row = UIView()
+        for subview in [results, candidateBar] as [UIView] {
+            subview.translatesAutoresizingMaskIntoConstraints = false
+            row.addSubview(subview)
+            NSLayoutConstraint.activate([
+                subview.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+                subview.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+                subview.topAnchor.constraint(equalTo: row.topAnchor),
+                subview.bottomAnchor.constraint(equalTo: row.bottomAnchor)
+            ])
+        }
+        stack.addArrangedSubview(field)
+        stack.addArrangedSubview(row)
+        emojiSearchField = field
+        emojiSearchResults = results
+        lastEmojiSearch = nil
+    }
+
     private func buildZhuyinKeyboard() {
         buildGridKeyboard(mode: .zhuyin)
     }
@@ -201,7 +245,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
 
     private func buildGridKeyboard(mode: KeyboardMode) {
         let mainStack = pinnedVerticalStack(spacing: 7)
-        mainStack.addArrangedSubview(makeCandidateBar())
+        addTopArea(to: mainStack)
 
         let leftColumn = makeColumn()
         leftColumn.addArrangedSubview(makeButton(for: .numberSwitch))
@@ -302,6 +346,10 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     }
 
     private func showEmojiPanel() {
+        if isSearchingEmoji {
+            closeEmojiSearch()
+            return
+        }
         apply(engine.commitComposition())
         rememberCommittedSelection()
         coordinator?.invalidate()
@@ -317,19 +365,110 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         rebuildKeyboard()
     }
 
-    private func buildEmojiPanel() {
+    private static let emojiSearchFieldHeight: CGFloat = 36
+    private static let emojiLogger = Logger(subsystem: "com.wirelesseye.FlickBo", category: "Emoji")
+
+    private func loadedEmojiCatalog() -> EmojiCatalog? {
         if emojiCatalog == nil {
             do {
                 emojiCatalog = try EmojiCatalog(bundle: .main)
             } catch {
-                Logger(subsystem: "com.wirelesseye.FlickBo", category: "Emoji")
-                    .error("emoji catalog unavailable: \(String(describing: error), privacy: .public)")
+                Self.emojiLogger.error("emoji catalog unavailable: \(String(describing: error), privacy: .public)")
             }
         }
+        return emojiCatalog
+    }
+
+    private func openEmojiSearch() {
+        emojiSearchQuery.clear()
+        isShowingEmojiPanel = false
+        isSearchingEmoji = true
+        updateKeyboardHeight()
+        rebuildKeyboard()
+    }
+
+    /// Back to the palette. The query and any composition are dropped; they
+    /// never reached the document.
+    private func closeEmojiSearch() {
+        apply(engine.resetComposition())
+        coordinator?.invalidate()
+        emojiSearchQuery.clear()
+        isSearchingEmoji = false
+        isShowingEmojiPanel = true
+        updateKeyboardHeight()
+        rebuildKeyboard()
+    }
+
+    private func clearEmojiSearch() {
+        apply(engine.resetComposition())
+        emojiSearchQuery.clear()
+        refreshUI()
+    }
+
+    private func insertSearchedEmoji(_ emoji: String) {
+        recentEmoji.record(emoji)
+        textDocumentProxy.insertText(emoji)
+    }
+
+    private func refreshEmojiSearch() {
+        guard isSearchingEmoji else { return }
+        emojiSearchField?.update(committed: emojiSearchQuery.committedText, marked: emojiSearchQuery.markedText)
+        let query = emojiSearchQuery.committedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let results: [String]
+        if let lastEmojiSearch, lastEmojiSearch.query == query {
+            results = lastEmojiSearch.results
+        } else {
+            results = searchEmoji(query)
+            lastEmojiSearch = (query, results)
+        }
+        emojiSearchResults?.update(results: results, hasQuery: !query.isEmpty)
+    }
+
+    /// Searches the query as typed and in canonical forms, since the words
+    /// use OpenCC standard Traditional while candidates follow the chosen variant.
+    private func searchEmoji(_ query: String) -> [String] {
+        guard !query.isEmpty else { return [] }
+        if emojiSearchIndex == nil, let catalog = loadedEmojiCatalog() {
+            do {
+                var keywords: EmojiKeywordTable?
+                do {
+                    keywords = try EmojiKeywordTable(bundle: .main)
+                } catch {
+                    Self.emojiLogger.error("emoji keywords unavailable: \(String(describing: error), privacy: .public)")
+                }
+                emojiSearchIndex = EmojiSearchIndex(
+                    table: try EmojiTable(bundle: .main),
+                    catalog: catalog,
+                    keywords: keywords
+                )
+            } catch {
+                Self.emojiLogger.error("emoji words unavailable: \(String(describing: error), privacy: .public)")
+            }
+        }
+        guard let index = emojiSearchIndex else { return [] }
+        let canonical = emojiSearchTextConverter().canonical(query)
+        guard canonical != query else { return index.search(query) }
+        var seen = Set<String>()
+        return (index.search(canonical) + index.search(query)).filter { seen.insert($0).inserted }
+    }
+
+    private func emojiSearchTextConverter() -> CandidateTextConverter {
+        if let emojiSearchConverter, emojiSearchConverter.variant == characterVariant {
+            return emojiSearchConverter.converter
+        }
+        let converter = (try? CandidateTextConverter(
+            variant: characterVariant,
+            store: MappedOpenCCStore(bundle: .main)
+        )) ?? .identity
+        emojiSearchConverter = (characterVariant, converter)
+        return converter
+    }
+
+    private func buildEmojiPanel() {
         // Recent emoji are read when the palette opens, so picks do not reorder it while open.
         let recent = recentEmoji.emoji.map { EmojiEntry(emoji: $0, name: "") }
         let sections = (recent.isEmpty ? [] : [EmojiSection(category: .recent, entries: recent)])
-            + (emojiCatalog?.sections ?? [])
+            + (loadedEmojiCatalog()?.sections ?? [])
         let deleteButton = makeButton(for: .delete)
         deleteButton.normalColor = .clear
         let panel = EmojiPanelView(
@@ -342,6 +481,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
             self?.handle(.symbol(emoji))
         }
         panel.onBack = { [weak self] in self?.hideEmojiPanel() }
+        panel.onSearch = { [weak self] in self?.openEmojiSearch() }
         panel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(panel)
         NSLayoutConstraint.activate([
@@ -711,6 +851,10 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     }
 
     private func handle(_ key: KeyboardKey) {
+        if isSearchingEmoji, key == .return, engine.composition.isEmpty {
+            closeEmojiSearch()
+            return
+        }
         let oldMode = engine.mode
         let update = engine.update(for: key)
         apply(update)
@@ -751,7 +895,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         case let .symbol(text):
             // Only replace when the inserted symbol is still right before the cursor.
             if let original = engine.lastInsertedSymbol,
-               let before = textDocumentProxy.documentContextBeforeInput,
+               let before = contextBeforeInput,
                !before.hasSuffix(original) {
                 engine.clearSymbolCandidates()
             } else {
@@ -762,14 +906,15 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     }
 
     private func requestPostCommitSuggestions(for text: String) {
-        guard engine.mode == .zhuyin else { return }
+        guard engine.mode == .zhuyin, !isSearchingEmoji else { return }
         let context = GrammarContext.tail(of: documentContextBeforeComposition + text)
         expectedSuggestionContext = context
         resolvedCoordinator().requestSuggestions(after: context)
     }
 
     private func rememberCommittedSelection() {
-        guard hasFullAccess, KeyboardSettings.remembersSelections,
+        // Search queries are not learned as the user's writing.
+        guard hasFullAccess, KeyboardSettings.remembersSelections, !isSearchingEmoji,
               !engine.lastCommittedChunks.isEmpty
         else { return }
         resolvedCoordinator().recordCommittedSelection(
@@ -809,11 +954,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         defer { documentEffectDepth -= 1 }
         if !documentHasMarkedText {
             // Read before marked text is inserted, so it holds only committed text.
-            documentContextBeforeComposition = GrammarContext.tail(
-                of: textDocumentProxy.documentContextBeforeInput
-            )
+            documentContextBeforeComposition = GrammarContext.tail(of: contextBeforeInput)
         }
-        effectApplier.apply(update.documentEffects)
+        (isSearchingEmoji ? searchEffectApplier : effectApplier).apply(update.documentEffects)
         documentHasMarkedText = engine.hasMarkedText
         if update.invalidatesCandidates {
             coordinator?.invalidate()
@@ -836,8 +979,14 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         }
     }
 
+    /// Text before the cursor where effects go: the search query while searching emoji.
+    private var contextBeforeInput: String? {
+        isSearchingEmoji ? emojiSearchQuery.committedText : textDocumentProxy.documentContextBeforeInput
+    }
+
     private func handleHostDocumentChange() {
-        guard documentEffectDepth == 0 else { return }
+        // While searching, the host only changes by inserted emoji.
+        guard documentEffectDepth == 0, !isSearchingEmoji else { return }
         if let symbol = engine.lastInsertedSymbol {
             // Host callbacks can arrive after our own insertion; keep variants while
             // the inserted symbol still sits right before the cursor.
@@ -866,12 +1015,23 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     private var candidateItems: [CandidateItem] {
         let symbols = engine.symbolCandidates
         guard symbols.isEmpty else { return symbols.map(CandidateItem.symbol) }
-        return coordinator?.items ?? []
+        let items = coordinator?.items ?? []
+        guard isSearchingEmoji else { return items }
+        // Search results already show emoji; candidates only build the query.
+        return items.filter { item in
+            if case let .input(candidate) = item { return !candidate.isEmoji }
+            return true
+        }
     }
 
     private func refreshCandidates() {
         let candidates = candidateItems
         candidateBar?.update(with: candidates)
+        if isSearchingEmoji {
+            candidateBar?.isHidden = candidates.isEmpty
+            // The candidate bar is translucent, so the results must not show through.
+            emojiSearchResults?.isHidden = !candidates.isEmpty
+        }
         refreshExpandedCandidates()
         if candidates.isEmpty {
             setCandidateListExpanded(false)
@@ -920,6 +1080,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     private func refreshUI() {
         refreshLetterKeys()
         refreshCandidates()
+        refreshEmojiSearch()
         let hasPending = engine.hasActiveTokens
         if hasPending {
             punctuationButton?.mapping = FlickKeyMapping([MandarinTone.neutral.symbol])
@@ -1034,8 +1195,15 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
 
     private func updateKeyboardHeight() {
         let compact = traitCollection.verticalSizeClass == .compact
-        // The emoji palette is taller so more rows of emoji fit.
-        let extra: CGFloat = isShowingEmojiPanel ? (compact ? 20 : 50) : 0
+        // The emoji palette is taller so more rows of emoji fit; search adds its field.
+        let extra: CGFloat
+        if isShowingEmojiPanel {
+            extra = compact ? 20 : 50
+        } else if isSearchingEmoji {
+            extra = Self.emojiSearchFieldHeight + 7
+        } else {
+            extra = 0
+        }
         heightConstraint?.constant = (compact ? 220 : 280) + extra
     }
 
@@ -1049,6 +1217,11 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         let type = textDocumentProxy.returnKeyType
         if engine.mode == .zhuyin, engine.hasMarkedText {
             setReturnTitle("確定", on: button)
+            applyReturnKeyAccent(false, on: button)
+            return
+        }
+        if isSearchingEmoji {
+            setReturnTitle("完成", on: button)
             applyReturnKeyAccent(false, on: button)
             return
         }

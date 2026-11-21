@@ -180,3 +180,82 @@ def parse_emoji_test(text: str, source_label: str) -> list[tuple[str, str, str, 
 
 def format_emoji_catalog(rows: list[tuple[str, str, str, str]]) -> str:
     return "".join("\t".join(row) + "\n" for row in rows)
+
+
+# CLDR zh_Hant annotations → emoji search keywords
+#
+# CLDR gives each emoji a short name (type="tts") and search keywords
+# separated by " | ". annotationsDerived adds names for sequences such as
+# flags and ZWJ sequences. The keywords file lists, for every catalog emoji
+# that has an annotation, in catalog order:
+#
+#     emoji<TAB>name<TAB>keyword<TAB>keyword...
+#
+# The emoji is written as in the catalog (fully qualified); annotations are
+# matched without U+FE0F, which CLDR leaves out.
+
+KEYWORDS_FORMAT_VERSION = 1
+MINIMUM_KEYWORD_COVERAGE = 0.95
+
+
+def emoji_match_key(emoji: str) -> str:
+    return emoji.replace(VARIATION_SELECTOR_16, "")
+
+
+def parse_cldr_annotations(data: bytes, source_label: str) -> dict[str, list[str]]:
+    """Returns match key -> [name, keywords...] without repeats."""
+    import xml.etree.ElementTree as ElementTree
+
+    try:
+        root = ElementTree.fromstring(data)
+    except ElementTree.ParseError as error:
+        raise EmojiFormatError(f"{source_label}: {error}") from error
+    names: dict[str, str] = {}
+    keywords: dict[str, list[str]] = {}
+    errors: list[str] = []
+    for element in root.iter("annotation"):
+        code_points = element.get("cp") or ""
+        value = (element.text or "").strip()
+        kind = element.get("type")
+        if not code_points or not value or any(character in value for character in "\t\r\n"):
+            errors.append(f"{source_label}: malformed annotation {code_points!r}")
+            continue
+        key = emoji_match_key(code_points)
+        if kind == "tts":
+            names[key] = value
+        elif kind is None:
+            keywords[key] = [keyword.strip() for keyword in value.split("|") if keyword.strip()]
+    if errors:
+        shown = "\n".join(errors[:8])
+        raise EmojiFormatError(f"{len(errors)} format errors:\n{shown}")
+    result: dict[str, list[str]] = {}
+    for key in names.keys() | keywords.keys():
+        terms: list[str] = []
+        for term in ([names[key]] if key in names else []) + keywords.get(key, []):
+            if term not in terms:
+                terms.append(term)
+        result[key] = terms
+    return result
+
+
+def merge_emoji_keywords(
+    rows: list[tuple[str, str, str, str]],
+    annotations: dict[str, list[str]],
+    derived: dict[str, list[str]],
+) -> list[tuple[str, list[str]]]:
+    """Keywords for catalog emoji, in catalog order; annotations win over derived."""
+    entries: list[tuple[str, list[str]]] = []
+    for _group, _version, emoji, _name in rows:
+        key = emoji_match_key(emoji)
+        terms = annotations.get(key) or derived.get(key)
+        if terms:
+            entries.append((emoji, terms))
+    if rows and len(entries) < len(rows) * MINIMUM_KEYWORD_COVERAGE:
+        raise EmojiFormatError(
+            f"only {len(entries)} of {len(rows)} catalog emoji have CLDR annotations"
+        )
+    return entries
+
+
+def format_emoji_keywords(entries: list[tuple[str, list[str]]]) -> str:
+    return "".join("\t".join([emoji, *terms]) + "\n" for emoji, terms in entries)

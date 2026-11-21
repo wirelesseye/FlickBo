@@ -57,6 +57,17 @@ FlickBo（滑注音）包含由第三方資料轉換而成的中文詞典。以�
 
 使用的原始檔為 `emoji-test.txt`，內容為所有繪文字序列、分組與 CLDR 排序。FlickBo 只保留 fully-qualified 序列，移除膚色變體與 Component 分組，保留分組、繪文字版本與英文短名，依原順序輸出為 `flickbo.emojicatalog`，作為繪文字選單的內容；執行期隱藏系統字型尚未支援的較新版本繪文字。轉換工具及來源 manifest 可在 FlickBo repository 的 `Tools/DictionaryCompiler/emoji_data.py` 與 `Vendor/unicode-emoji/` 找到。
 
+## Unicode CLDR Emoji Annotations
+
+- 名稱：Unicode CLDR 繪文字註解（zh_Hant `annotations` 與 `annotationsDerived`）
+- 作者／維護者：Unicode, Inc.
+- 來源：<https://github.com/unicode-org/cldr>
+- 使用版本：CLDR 49（`release-49`，commit `96e54b273d2da4ec6fbad350ba19ff23fa24a588`）
+- 授權：Unicode License v3（CLDR 資料檔）
+- 授權全文：隨 App 一併提供的 `Unicode-LICENSE.txt`，或 <https://www.unicode.org/license.txt>
+
+使用的原始檔為 `common/annotations/zh_Hant.xml` 與 `common/annotationsDerived/zh_Hant.xml`，內容為繪文字的繁體中文名稱與搜尋關鍵字。FlickBo 依 Unicode `emoji-test.txt` 的繪文字清單取出每個繪文字的名稱與關鍵字，去除重複後輸出為 `flickbo.emojikeywords`，供繪文字搜尋使用。轉換工具及來源 manifest 可在 FlickBo repository 的 `Tools/DictionaryCompiler/emoji_data.py` 與 `Vendor/cldr-annotations/` 找到。
+
 ## OpenCC
 
 - 名稱：Open Chinese Convert（OpenCC）字典資料

@@ -26,9 +26,13 @@ from opencc_data import (
 from emoji_data import (
     CATALOG_FORMAT_VERSION,
     EMOJI_FORMAT_VERSION,
+    KEYWORDS_FORMAT_VERSION,
     EmojiFormatError,
     format_emoji_catalog,
+    format_emoji_keywords,
     format_emoji_table,
+    merge_emoji_keywords,
+    parse_cldr_annotations,
     parse_emoji_test,
     parse_emoji_words,
 )
@@ -59,6 +63,8 @@ MAXIMUM_EMOJI_BYTES = 1024 * 1024
 UNICODE_EMOJI_BASE_URL = "https://www.unicode.org/Public/{version}/emoji"
 UNICODE_LICENSE_URL = "https://www.unicode.org/license.txt"
 UNICODE_VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+CLDR_REPOSITORY = "https://github.com/unicode-org/cldr"
+CLDR_RAW_BASE_URL = "https://raw.githubusercontent.com/unicode-org/cldr"
 MAXIMUM_OPENCC_BYTES = 8 * 1024 * 1024
 MAXIMUM_GRAMMAR_BYTES = 64 * 1024 * 1024
 MAXIMUM_GRAMMAR_KEY_CHARACTERS = 8
@@ -2184,6 +2190,122 @@ def command_build_emoji_catalog(args: argparse.Namespace) -> int:
     return 0
 
 
+def cldr_annotation_source_files() -> dict[str, str]:
+    """Local file name -> path inside the CLDR repository."""
+    return {
+        "annotations-zh_Hant.xml": "common/annotations/zh_Hant.xml",
+        "annotationsDerived-zh_Hant.xml": "common/annotationsDerived/zh_Hant.xml",
+        "CLDR-LICENSE.txt": "LICENSE",
+    }
+
+
+def command_fetch_cldr_annotations(args: argparse.Namespace) -> int:
+    if not validate_commit(args.commit):
+        print("fetch-cldr-annotations: --commit must be a full 40-character lowercase hex commit", file=sys.stderr)
+        return 2
+    destination = Path(args.dest)
+    files = {
+        name: download(f"{CLDR_RAW_BASE_URL}/{args.commit}/{path}")
+        for name, path in cldr_annotation_source_files().items()
+    }
+    try:
+        annotations = parse_cldr_annotations(files["annotations-zh_Hant.xml"], "annotations/zh_Hant.xml")
+        derived = parse_cldr_annotations(files["annotationsDerived-zh_Hant.xml"], "annotationsDerived/zh_Hant.xml")
+    except EmojiFormatError as error:
+        print(f"fetch-cldr-annotations: invalid annotations: {error}", file=sys.stderr)
+        return 1
+    manifest = {
+        "repository": CLDR_REPOSITORY,
+        "release": args.release,
+        "commit": args.commit,
+        "formatVersion": KEYWORDS_FORMAT_VERSION,
+        "files": {
+            name: {"path": path, "sha256": sha256_bytes(files[name])}
+            for name, path in cldr_annotation_source_files().items()
+        },
+        "annotationCount": len(annotations),
+        "derivedAnnotationCount": len(derived),
+        "retrievedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    destination.mkdir(parents=True, exist_ok=True)
+    for name, data in files.items():
+        (destination / name).write_bytes(data)
+    (destination / "SOURCE.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"fetch-cldr-annotations: wrote {len(files)} files to {destination}")
+    return 0
+
+
+def verify_source_hashes(manifest: dict, manifest_path: Path, source_directory: Path, names) -> None:
+    expected = manifest.get("files")
+    if not isinstance(expected, dict):
+        raise CompileFailure(f"{manifest_path}: missing files")
+    for name in names:
+        record = expected.get(name)
+        if not isinstance(record, dict) or not SHA256_PATTERN.fullmatch(str(record.get("sha256", ""))):
+            raise CompileFailure(f"{manifest_path}: missing sha256 for {name}")
+        actual = sha256_bytes((source_directory / name).read_bytes())
+        if actual != record["sha256"]:
+            raise CompileFailure(f"{name}: sha256 {actual} does not match manifest {record['sha256']}")
+
+
+def build_emoji_keywords(
+    unicode_directory: Path,
+    unicode_manifest_path: Path,
+    cldr_directory: Path,
+    cldr_manifest_path: Path,
+    output_path: Path,
+) -> tuple[int, int]:
+    """Returns the emoji count and output size."""
+    unicode_manifest = json.loads(Path(unicode_manifest_path).read_text(encoding="utf-8"))
+    verify_source_hashes(unicode_manifest, unicode_manifest_path, unicode_directory, unicode_emoji_source_files())
+    cldr_manifest = load_manifest(cldr_manifest_path)
+    if cldr_manifest.get("formatVersion") != KEYWORDS_FORMAT_VERSION:
+        raise CompileFailure(
+            f"{cldr_manifest_path}: unsupported formatVersion {cldr_manifest.get('formatVersion')!r}"
+        )
+    verify_source_hashes(cldr_manifest, cldr_manifest_path, cldr_directory, cldr_annotation_source_files())
+    try:
+        rows = parse_emoji_test(
+            (unicode_directory / "emoji-test.txt").read_text(encoding="utf-8"), "emoji-test.txt"
+        )
+        entries = merge_emoji_keywords(
+            rows,
+            parse_cldr_annotations(
+                (cldr_directory / "annotations-zh_Hant.xml").read_bytes(), "annotations/zh_Hant.xml"
+            ),
+            parse_cldr_annotations(
+                (cldr_directory / "annotationsDerived-zh_Hant.xml").read_bytes(),
+                "annotationsDerived/zh_Hant.xml",
+            ),
+        )
+    except EmojiFormatError as error:
+        raise CompileFailure(str(error)) from error
+    data = format_emoji_keywords(entries).encode("utf-8")
+    if len(data) > MAXIMUM_EMOJI_BYTES:
+        raise CompileFailure(f"emoji keywords are {len(data)} bytes, above {MAXIMUM_EMOJI_BYTES}")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(data)
+    return len(entries), len(data)
+
+
+def command_build_emoji_keywords(args: argparse.Namespace) -> int:
+    try:
+        count, size = build_emoji_keywords(
+            Path(args.unicode_dir),
+            Path(args.unicode_manifest),
+            Path(args.cldr_dir),
+            Path(args.cldr_manifest),
+            Path(args.output),
+        )
+    except (CompileFailure, OSError, json.JSONDecodeError) as failure:
+        print(f"build-emoji-keywords: failed: {failure}", file=sys.stderr)
+        return 1
+    print(f"build-emoji-keywords: {count} emoji, {size} bytes")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Compile the pinned Rime sources into the SQLite dictionary and FZGram grammar"
@@ -2283,6 +2405,24 @@ def main(argv: list[str] | None = None) -> int:
     build_emoji_catalog_parser.add_argument("--manifest", default="Vendor/unicode-emoji/SOURCE.json")
     build_emoji_catalog_parser.add_argument("--output", default="Generated/flickbo.emojicatalog")
     build_emoji_catalog_parser.set_defaults(func=command_build_emoji_catalog)
+
+    fetch_cldr = subparsers.add_parser(
+        "fetch-cldr-annotations", help="download CLDR zh_Hant emoji annotations at a pinned commit"
+    )
+    fetch_cldr.add_argument("--commit", required=True, help="full CLDR commit hash")
+    fetch_cldr.add_argument("--release", required=True, help="CLDR release tag, e.g. release-49")
+    fetch_cldr.add_argument("--dest", default="Vendor/cldr-annotations")
+    fetch_cldr.set_defaults(func=command_fetch_cldr_annotations)
+
+    build_keywords = subparsers.add_parser(
+        "build-emoji-keywords", help="compile CLDR emoji search keywords without network access"
+    )
+    build_keywords.add_argument("--unicode-dir", default="Vendor/unicode-emoji")
+    build_keywords.add_argument("--unicode-manifest", default="Vendor/unicode-emoji/SOURCE.json")
+    build_keywords.add_argument("--cldr-dir", default="Vendor/cldr-annotations")
+    build_keywords.add_argument("--cldr-manifest", default="Vendor/cldr-annotations/SOURCE.json")
+    build_keywords.add_argument("--output", default="Generated/flickbo.emojikeywords")
+    build_keywords.set_defaults(func=command_build_emoji_keywords)
 
     args = parser.parse_args(argv)
     return args.func(args)

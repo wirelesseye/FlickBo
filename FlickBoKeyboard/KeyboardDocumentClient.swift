@@ -66,3 +66,44 @@ final class TextDocumentProxyClient: KeyboardDocumentClient {
         proxy.adjustTextPosition(byCharacterOffset: offset)
     }
 }
+
+/// The emoji search field. While searching, document effects go here instead
+/// of the host app, so Zhuyin composition and candidates work as usual. The
+/// caret always stays at the end.
+@MainActor
+final class EmojiSearchQuery: KeyboardDocumentClient {
+    private(set) var committedText = ""
+    private(set) var markedText = ""
+
+    var isEmpty: Bool { committedText.isEmpty && markedText.isEmpty }
+
+    func setMarkedText(_ text: String, selectedRange: NSRange) {
+        markedText = text
+    }
+
+    func unmarkText() {
+        committedText += markedText
+        markedText = ""
+    }
+
+    func insertText(_ text: String) {
+        // Like UITextDocumentProxy, inserted text replaces the marked text.
+        markedText = ""
+        committedText += text
+    }
+
+    func deleteBackward() {
+        if !markedText.isEmpty {
+            markedText.removeLast()
+        } else if !committedText.isEmpty {
+            committedText.removeLast()
+        }
+    }
+
+    func moveCursor(by offset: Int) {}
+
+    func clear() {
+        committedText = ""
+        markedText = ""
+    }
+}

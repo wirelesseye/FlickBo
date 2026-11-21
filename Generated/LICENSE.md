@@ -1,6 +1,6 @@
 # 詞典與語言模型資料授權
 
-本文件涵蓋 `flickbo.sqlite3`、`flickbo.gram`、`flickbo.opencc`、`flickbo.emoji` 與 `flickbo.emojicatalog`。
+本文件涵蓋 `flickbo.sqlite3`、`flickbo.gram`、`flickbo.opencc`、`flickbo.emoji`、`flickbo.emojicatalog` 與 `flickbo.emojikeywords`。
 
 ## flickbo.sqlite3
 
@@ -55,3 +55,11 @@ Terra 部分提供字音、多音字與明確詞條，依 CC BY-SA 3.0 提供；
 - 授權：Unicode License v3，<https://www.unicode.org/license.txt>（全文見 `Vendor/unicode-emoji/Unicode-LICENSE.txt`）
 
 轉換包括只保留 fully-qualified 序列、移除膚色變體與 Component 分組，並依原順序輸出分組、繪文字版本、繪文字與英文短名。
+
+## flickbo.emojikeywords
+
+- 上游：<https://github.com/unicode-org/cldr>（CLDR 49，`common/annotations/zh_Hant.xml`、`common/annotationsDerived/zh_Hant.xml`）
+- Commit：`96e54b273d2da4ec6fbad350ba19ff23fa24a588`
+- 授權：Unicode License v3，<https://www.unicode.org/license.txt>（全文見 `Vendor/cldr-annotations/CLDR-LICENSE.txt`）
+
+轉換包括依 `emoji-test.txt` 的繪文字清單取出名稱與關鍵字、去除重複，並以 tab 分隔輸出。
