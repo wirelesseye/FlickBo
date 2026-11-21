@@ -26,9 +26,17 @@ final class FlickKeyButton: KeyboardButton {
     private var startPoint = CGPoint.zero
     private var activeDirection: FlickDirection = .center
     private var preview: FlickPreviewView?
+    private var directionalPreview: FlickDirectionalPreviewView?
     private var directionalFaceView: FlickDirectionalFaceView?
     private var previewDelayWorkItem: DispatchWorkItem?
     private var dimmedButtonStates: [DimmedButtonState] = []
+    private var isFlickTracking = false
+
+    /// UIControl clears the highlight when the touch leaves the key; keep it pressed while flicking.
+    override var isHighlighted: Bool {
+        get { super.isHighlighted }
+        set { super.isHighlighted = newValue || isFlickTracking }
+    }
 
     private static let previewLongPressDelay: TimeInterval = 0.5
 
@@ -46,6 +54,7 @@ final class FlickKeyButton: KeyboardButton {
         guard super.beginTracking(touch, with: event) else { return false }
         startPoint = touch.location(in: self)
         activeDirection = .center
+        isFlickTracking = true
         isHighlighted = true
         schedulePreviewForLongPress()
         return true
@@ -57,11 +66,12 @@ final class FlickKeyButton: KeyboardButton {
             deltaX: Double(point.x - startPoint.x),
             deltaY: Double(point.y - startPoint.y)
         )
-        if preview == nil, direction != .center {
-            showPreview(selected: direction)
-        }
         let active = mapping[direction] == nil ? nil : direction
-        preview?.selectedDirection = active
+        if let preview {
+            preview.selectedDirection = active
+        } else {
+            updateDirectionalPreview(for: active)
+        }
         if let active, active != activeDirection {
             activeDirection = active
             KeyHaptics.selectionChanged()
@@ -73,6 +83,7 @@ final class FlickKeyButton: KeyboardButton {
         defer {
             cancelPendingPreview()
             hidePreview()
+            isFlickTracking = false
             isHighlighted = false
             super.endTracking(touch, with: event)
         }
@@ -89,6 +100,7 @@ final class FlickKeyButton: KeyboardButton {
     override func cancelTracking(with event: UIEvent?) {
         cancelPendingPreview()
         hidePreview()
+        isFlickTracking = false
         isHighlighted = false
         super.cancelTracking(with: event)
     }
@@ -133,8 +145,36 @@ final class FlickKeyButton: KeyboardButton {
         previewDelayWorkItem = nil
     }
 
+    /// A quick flick shows only the preview for the active direction without dimming other keys;
+    /// returning to center hides it and restarts the long-press timer.
+    private func updateDirectionalPreview(for direction: FlickDirection?) {
+        guard showsPreview, let overlayHost else { return }
+        guard let direction, direction != .center, let symbol = mapping[direction] else {
+            if directionalPreview != nil {
+                hideDirectionalPreview()
+                if direction == .center { schedulePreviewForLongPress() }
+            }
+            return
+        }
+        cancelPendingPreview()
+        if let directionalPreview, directionalPreview.direction == direction { return }
+        hideDirectionalPreview()
+
+        let keyFrame = convert(bounds, to: overlayHost)
+        let bubble = FlickDirectionalPreviewView(symbol: symbol, direction: direction)
+        bubble.frame = FlickDirectionalPreviewView.frame(for: direction, keyFrame: keyFrame)
+        overlayHost.addSubview(bubble)
+        directionalPreview = bubble
+    }
+
+    private func hideDirectionalPreview() {
+        directionalPreview?.removeFromSuperview()
+        directionalPreview = nil
+    }
+
     private func showPreview(selected: FlickDirection) {
         guard showsPreview, let overlayHost else { return }
+        hideDirectionalPreview()
         dimOtherButtons(in: overlayHost)
 
         let preview = FlickPreviewView(mapping: mapping)
@@ -150,6 +190,7 @@ final class FlickKeyButton: KeyboardButton {
     }
 
     private func hidePreview() {
+        hideDirectionalPreview()
         preview?.removeFromSuperview()
         preview = nil
         restoreDimmedButtons()
@@ -312,6 +353,128 @@ private final class FlickPreviewOptionView: UIView {
         case .right:
             return [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
         }
+    }
+}
+
+private final class FlickDirectionalPreviewView: UIView {
+    let direction: FlickDirection
+
+    private static let pointerDepth: CGFloat = 16
+    private static let cornerRadius: CGFloat = 11
+
+    private let fillView = UIView()
+    private let maskLayer = CAShapeLayer()
+    private let label = UILabel()
+
+    init(symbol: String, direction: FlickDirection) {
+        self.direction = direction
+        super.init(frame: .zero)
+        isUserInteractionEnabled = false
+
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOpacity = 0.18
+        layer.shadowRadius = 3
+        layer.shadowOffset = CGSize(width: 0, height: 1)
+
+        // Opaque fill so the neighboring key's label underneath doesn't show through.
+        fillView.backgroundColor = UIColor { traits in
+            traits.userInterfaceStyle == .dark ? UIColor(white: 0.4, alpha: 1) : .white
+        }
+        fillView.layer.mask = maskLayer
+        addSubview(fillView)
+
+        label.textAlignment = .center
+        label.textColor = .label
+        if ToneSymbolStyle.isToneSymbol(symbol) {
+            label.attributedText = ToneSymbolStyle.attributedText(
+                for: symbol,
+                fontSize: ToneSymbolStyle.previewFontSize
+            )
+        } else {
+            label.text = symbol
+            label.font = .systemFont(ofSize: symbol.count > 1 ? 17 : 26, weight: .regular)
+        }
+        addSubview(label)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    /// The body matches the key size, sits on the flick side of the key, and points back at it.
+    static func frame(for direction: FlickDirection, keyFrame: CGRect) -> CGRect {
+        let width = keyFrame.width
+        let height = keyFrame.height
+        switch direction {
+        case .left:
+            return CGRect(x: keyFrame.minX - width, y: keyFrame.minY, width: width + pointerDepth, height: height)
+        case .right:
+            return CGRect(x: keyFrame.maxX - pointerDepth, y: keyFrame.minY, width: width + pointerDepth, height: height)
+        case .up:
+            return CGRect(x: keyFrame.minX, y: keyFrame.minY - height, width: width, height: height + pointerDepth)
+        case .down:
+            return CGRect(x: keyFrame.minX, y: keyFrame.maxY - pointerDepth, width: width, height: height + pointerDepth)
+        case .center:
+            return keyFrame
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        fillView.frame = bounds
+        let (body, path) = Self.shape(for: direction, in: bounds)
+        maskLayer.path = path.cgPath
+        layer.shadowPath = path.cgPath
+        label.frame = body
+    }
+
+    /// Shaped like the Japanese keyboard's bubble: a rounded rectangle on the far end that tapers
+    /// into a full-height triangular point toward the key.
+    private static func shape(for direction: FlickDirection, in bounds: CGRect) -> (CGRect, UIBezierPath) {
+        let depth = pointerDepth
+        let isHorizontal = direction == .left || direction == .right
+        let length = isHorizontal ? bounds.width : bounds.height
+        let thickness = isHorizontal ? bounds.height : bounds.width
+        let bodyEnd = length - depth
+        let mid = thickness / 2
+
+        // Vertices are described in a canonical space with the point facing +x, then mapped per direction.
+        let canonical: [(point: CGPoint, radius: CGFloat)] = [
+            (CGPoint(x: 0, y: 0), cornerRadius),
+            (CGPoint(x: bodyEnd, y: 0), 5),
+            (CGPoint(x: length, y: mid), 4),
+            (CGPoint(x: bodyEnd, y: thickness), 5),
+            (CGPoint(x: 0, y: thickness), cornerRadius)
+        ]
+        func map(_ p: CGPoint) -> CGPoint {
+            switch direction {
+            case .left, .center: return CGPoint(x: bounds.minX + p.x, y: bounds.minY + p.y)
+            case .right: return CGPoint(x: bounds.maxX - p.x, y: bounds.minY + p.y)
+            case .up: return CGPoint(x: bounds.minX + p.y, y: bounds.minY + p.x)
+            case .down: return CGPoint(x: bounds.minX + p.y, y: bounds.maxY - p.x)
+            }
+        }
+        let vertices = canonical.map { (map($0.point), $0.radius) }
+
+        let path = CGMutablePath()
+        let first = vertices[0].0, last = vertices[vertices.count - 1].0
+        path.move(to: CGPoint(x: (first.x + last.x) / 2, y: (first.y + last.y) / 2))
+        for index in vertices.indices {
+            let (corner, radius) = vertices[index]
+            let next = vertices[(index + 1) % vertices.count].0
+            path.addArc(tangent1End: corner, tangent2End: next, radius: radius)
+        }
+        path.closeSubpath()
+
+        var body = bounds
+        switch direction {
+        case .left: body.size.width -= depth
+        case .right: body.origin.x += depth; body.size.width -= depth
+        case .up: body.size.height -= depth
+        case .down: body.origin.y += depth; body.size.height -= depth
+        case .center: break
+        }
+        return (body, UIBezierPath(cgPath: path))
     }
 }
 
