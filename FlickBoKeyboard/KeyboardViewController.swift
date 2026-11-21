@@ -1,7 +1,9 @@
 import UIKit
 
-final class KeyboardViewController: UIInputViewController {
+final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDelegate {
     private static let maximumCandidateCount = 30
+    /// Horizontal finger travel that moves the cursor by one character in space-bar cursor mode.
+    private static let cursorStepWidth: CGFloat = 9
 
     private var engine = KeyboardEngine()
     private var keyButtons: [(key: KeyboardKey, button: KeyboardButton)] = []
@@ -9,6 +11,9 @@ final class KeyboardViewController: UIInputViewController {
     private weak var candidateBar: CandidateBarView?
     private weak var expandedCandidatesView: ExpandedCandidateView?
     private weak var keyGrid: UIStackView?
+    /// Keys dimmed while the space bar drags the cursor.
+    private weak var keyArea: UIView?
+    private var cursorDragAnchorX: CGFloat?
     private weak var toneButton: FlickKeyButton?
     private weak var punctuationButton: FlickKeyButton?
     private var heightConstraint: NSLayoutConstraint?
@@ -97,6 +102,8 @@ final class KeyboardViewController: UIInputViewController {
         candidateBar = nil
         expandedCandidatesView = nil
         keyGrid = nil
+        keyArea = nil
+        cursorDragAnchorX = nil
         toneButton = nil
         punctuationButton = nil
         isCandidateListExpanded = false
@@ -126,6 +133,7 @@ final class KeyboardViewController: UIInputViewController {
         keyboardStack.spacing = 7
         keyboardStack.distribution = .fillEqually
         mainStack.addArrangedSubview(keyboardStack)
+        keyArea = keyboardStack
         for (index, row) in KeyboardLayout.letterRows.enumerated() {
             let rowStack = makeRow()
             if index == 1 {
@@ -244,6 +252,7 @@ final class KeyboardViewController: UIInputViewController {
         grid.addArrangedSubview(inputKeys)
         grid.addArrangedSubview(rightColumn)
         keyGrid = grid
+        keyArea = grid
 
         NSLayoutConstraint.activate([
             rightColumn.widthAnchor.constraint(equalTo: leftColumn.widthAnchor),
@@ -294,8 +303,55 @@ final class KeyboardViewController: UIInputViewController {
         button.titleLabel?.font = .systemFont(ofSize: 15)
         button.normalColor = KeyboardButton.standardKeyColor
         button.accessibilityLabel = "空白或音調"
+        installSpaceCursorDrag(on: button)
         toneButton = button
         return button
+    }
+
+    /// Long-pressing the space bar turns it into a trackpad: sliding left or right moves
+    /// the cursor, and releasing inserts no space. Disabled while the key enters tones.
+    private func installSpaceCursorDrag(on button: UIView) {
+        let recognizer = UILongPressGestureRecognizer(
+            target: self,
+            action: #selector(handleSpaceCursorDrag(_:))
+        )
+        recognizer.minimumPressDuration = 0.4
+        recognizer.delegate = self
+        button.addGestureRecognizer(recognizer)
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard gestureRecognizer is UILongPressGestureRecognizer else { return true }
+        return !engine.hasActiveTokens
+    }
+
+    @objc private func handleSpaceCursorDrag(_ recognizer: UILongPressGestureRecognizer) {
+        let x = recognizer.location(in: view).x
+        switch recognizer.state {
+        case .began:
+            cursorDragAnchorX = x
+            KeyHaptics.selectionChanged()
+            setCursorDragActive(true)
+        case .changed:
+            guard let anchor = cursorDragAnchorX else { return }
+            let steps = Int((x - anchor) / Self.cursorStepWidth)
+            guard steps != 0 else { return }
+            cursorDragAnchorX = anchor + CGFloat(steps) * Self.cursorStepWidth
+            let key: KeyboardKey = steps < 0 ? .cursorLeft : .cursorRight
+            for _ in 0..<abs(steps) {
+                handle(key)
+            }
+            KeyHaptics.selectionChanged()
+        default:
+            cursorDragAnchorX = nil
+            setCursorDragActive(false)
+        }
+    }
+
+    private func setCursorDragActive(_ active: Bool) {
+        UIView.animate(withDuration: 0.15) {
+            self.keyArea?.alpha = active ? 0.45 : 1
+        }
     }
 
     private func makeZhuyinControl(_ mapping: FlickKeyMapping) -> FlickKeyButton {
@@ -533,6 +589,9 @@ final class KeyboardViewController: UIInputViewController {
             installKeyRepeat(for: key, on: button)
         } else {
             button.addAction(UIAction { [weak self] _ in self?.handle(key) }, for: .touchUpInside)
+            if key == .space {
+                installSpaceCursorDrag(on: button)
+            }
         }
         keyButtons.append((key, button))
         return button
