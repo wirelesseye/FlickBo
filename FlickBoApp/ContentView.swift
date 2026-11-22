@@ -114,8 +114,6 @@ struct ContentView: View {
                         }
                     } header: {
                         Text("輸入")
-                    } footer: {
-                        Text("關閉自動提交後，需按「確定」提交組字內容。記憶選字會在提交後記住新詞與選字次數，鍵盤需開啟「允許完整取用」才能寫入，資料只保存在此裝置。繪文字接在對應的詞後面，例如「笑」之後出現 😄，不會影響記憶選字。自訂詞彙可隨時編輯，不會被清除學習資料刪除。")
                     }
                 }
                 .disabled(!sharedSettingsAvailable)
@@ -134,7 +132,7 @@ struct ContentView: View {
                     Button(role: .destructive) {
                         showsClearConfirmation = true
                     } label: {
-                        Text("清除學習資料")
+                        Text("清除使用記錄")
                             .frame(maxWidth: .infinity)
                     }
                     .disabled(!sharedSettingsAvailable)
@@ -142,32 +140,38 @@ struct ContentView: View {
                     if let learningMessage {
                         Text(learningMessage)
                     } else {
-                        Text("刪除自動記憶的新詞與選字次數，自訂詞彙不受影響。")
+                        Text("刪除自動記憶的新詞與選字次數，以及繪文字、符號與顏文字的最近使用，自訂詞彙不受影響。")
                     }
                 }
             }
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(Self.appDisplayName)
             .onAppear(perform: KeyboardSettings.logAppGroupStatus)
-            .confirmationDialog(
-                "清除所有新詞與選字次數？",
-                isPresented: $showsClearConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button("清除學習資料", role: .destructive) {
-                    Task {
-                        do {
-                            guard let url = KeyboardSettings.userLearningURL else {
-                                throw UserLearningError.database("App Group 容器不可用")
-                            }
-                            let store = try UserLearningStore(url: url, writable: true)
-                            try store.clear()
-                            learningMessage = "已清除學習資料。"
-                        } catch {
-                            learningMessage = "清除失敗：\(error.localizedDescription)"
-                        }
-                    }
+            .alert("清除使用記錄？", isPresented: $showsClearConfirmation) {
+                Button("清除", role: .destructive, action: clearUsageHistory)
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("將刪除自動記憶的新詞與選字次數，以及繪文字、符號與顏文字的最近使用。自訂詞彙不受影響，此動作無法復原。")
+            }
+        }
+    }
+
+    private func clearUsageHistory() {
+        // The keyboard clears its recent items the next time it appears.
+        guard KeyboardSettings.requestClearingRecentItems() else {
+            learningMessage = "清除失敗：App Group 容器不可用"
+            return
+        }
+        Task {
+            do {
+                guard let url = KeyboardSettings.userLearningURL else {
+                    throw UserLearningError.database("App Group 容器不可用")
                 }
+                let store = try UserLearningStore(url: url, writable: true)
+                try store.clear()
+                learningMessage = "已清除使用記錄。最近使用會在下次開啟鍵盤時清除。"
+            } catch {
+                learningMessage = "清除新詞與選字次數失敗：\(error.localizedDescription)"
             }
         }
     }

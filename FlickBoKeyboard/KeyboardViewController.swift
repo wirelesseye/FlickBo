@@ -72,6 +72,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         KeyboardSettings.logAppGroupStatus()
+        clearRecentItemsIfRequested()
         let accessChanged = coordinatorHasFullAccess.map { $0 != hasFullAccess } ?? false
         let settingsVariant = KeyboardSettings.characterVariant
         if settingsVariant != settingsCharacterVariant {
@@ -468,7 +469,16 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         return converter
     }
 
+    /// The app's 「清除使用記錄」 cannot reach the keyboard's own defaults, so it
+    /// leaves a request in the shared settings for the keyboard to carry out.
+    private func clearRecentItemsIfRequested() {
+        if RecentEmojiStore.clearAll(ifRequested: KeyboardSettings.recentItemsClearRequest, in: .standard) {
+            Self.emojiLogger.notice("cleared recent palette items at the app's request")
+        }
+    }
+
     private func buildEmojiPanel() {
+        clearRecentItemsIfRequested()
         // Recent items are read when the palette opens, so picks do not reorder it while open.
         let deleteButton = makeButton(for: .delete)
         deleteButton.normalColor = .clear

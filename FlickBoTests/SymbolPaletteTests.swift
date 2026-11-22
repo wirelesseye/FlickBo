@@ -51,4 +51,26 @@ final class SymbolPaletteTests: XCTestCase {
         XCTAssertEqual(symbols.emoji, ["☆"])
         XCTAssertEqual(kaomoji.emoji, ["(^^)"])
     }
+
+    func testClearRequestClearsEveryPaletteOnce() throws {
+        let suite = "SymbolPaletteTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let stores = [RecentEmojiStore.emojiKey, RecentEmojiStore.symbolKey, RecentEmojiStore.kaomojiKey]
+            .map { RecentEmojiStore(defaults: defaults, key: $0) }
+        stores.forEach { $0.record("☆") }
+
+        XCTAssertFalse(RecentEmojiStore.clearAll(ifRequested: 0, in: defaults))
+        XCTAssertEqual(stores.map(\.emoji), [["☆"], ["☆"], ["☆"]])
+
+        XCTAssertTrue(RecentEmojiStore.clearAll(ifRequested: 1, in: defaults))
+        XCTAssertEqual(stores.map(\.emoji), [[], [], []])
+
+        // Picks made after a request has been handled are kept until the next request.
+        stores[1].record("→")
+        XCTAssertFalse(RecentEmojiStore.clearAll(ifRequested: 1, in: defaults))
+        XCTAssertEqual(stores[1].emoji, ["→"])
+        XCTAssertTrue(RecentEmojiStore.clearAll(ifRequested: 2, in: defaults))
+        XCTAssertEqual(stores[1].emoji, [])
+    }
 }

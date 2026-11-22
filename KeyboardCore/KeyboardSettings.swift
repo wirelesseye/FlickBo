@@ -11,6 +11,7 @@ enum KeyboardSettings {
     static let abcUsesFlickLayoutKey = "abcUsesFlickLayout"
     static let characterVariantKey = "characterVariant"
     static let showsEmojiCandidatesKey = "showsEmojiCandidates"
+    static let recentItemsClearRequestKey = "recentItemsClearRequest"
 
     private static let appGroupCandidates: [String] = {
         guard let bundleID = Bundle.main.bundleIdentifier,
@@ -101,6 +102,21 @@ enum KeyboardSettings {
             (sharedDefaults?.string(forKey: characterVariantKey)).flatMap(CharacterVariant.init(rawValue:)) ?? .taiwan
         }
         set { sharedDefaults?.set(newValue.rawValue, forKey: characterVariantKey) }
+    }
+
+    /// Counts the app's requests to clear the palettes' recent items. The
+    /// recent items live in the keyboard's own defaults, out of the app's
+    /// reach, so the keyboard clears them when it sees the count go up.
+    static var recentItemsClearRequest: Int {
+        sharedDefaults?.integer(forKey: recentItemsClearRequestKey) ?? 0
+    }
+
+    /// Returns false when the shared settings are unavailable.
+    @discardableResult
+    static func requestClearingRecentItems() -> Bool {
+        guard let defaults = sharedDefaults else { return false }
+        defaults.set(defaults.integer(forKey: recentItemsClearRequestKey) + 1, forKey: recentItemsClearRequestKey)
+        return true
     }
 
     static var userLearningURL: URL? {

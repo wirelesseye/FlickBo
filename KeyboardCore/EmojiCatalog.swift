@@ -152,7 +152,21 @@ struct RecentEmojiStore {
     static let emojiKey = "recentEmoji"
     static let symbolKey = "recentSymbols"
     static let kaomojiKey = "recentKaomoji"
+    /// The last clear request (`KeyboardSettings.recentItemsClearRequest`) handled.
+    static let handledClearRequestKey = "recentItemsHandledClearRequest"
     static let limit = 32
+
+    /// Clears every palette's recent items when `request` is newer than the
+    /// last one handled. Returns whether anything was cleared.
+    @discardableResult
+    static func clearAll(ifRequested request: Int, in defaults: UserDefaults) -> Bool {
+        guard request > defaults.integer(forKey: handledClearRequestKey) else { return false }
+        for key in [emojiKey, symbolKey, kaomojiKey] {
+            defaults.removeObject(forKey: key)
+        }
+        defaults.set(request, forKey: handledClearRequestKey)
+        return true
+    }
 
     let defaults: UserDefaults
     var key: String = Self.emojiKey
