@@ -29,6 +29,8 @@ struct InputCandidate: Equatable, Identifiable, Sendable {
     /// Whether this candidate is a full-width form that also has a half-width
     /// counterpart (e.g. full-width numbers like `１３`), shown with a `全` badge.
     let isFullWidth: Bool
+    /// Optional custom corner badge (e.g. `"現在的時間"` for current time candidates).
+    let badge: String?
 
     init(
         id: CandidateID,
@@ -38,7 +40,8 @@ struct InputCandidate: Equatable, Identifiable, Sendable {
         score: Double,
         isRawFallback: Bool,
         isEmoji: Bool = false,
-        isFullWidth: Bool = false
+        isFullWidth: Bool = false,
+        badge: String? = nil
     ) {
         self.id = id
         self.text = text
@@ -48,6 +51,7 @@ struct InputCandidate: Equatable, Identifiable, Sendable {
         self.isRawFallback = isRawFallback
         self.isEmoji = isEmoji
         self.isFullWidth = isFullWidth
+        self.badge = badge
     }
 
     /// `emoji` offered for `word`, covering the same input.
@@ -71,6 +75,22 @@ struct InputCandidate: Equatable, Identifiable, Sendable {
             score: 0,
             isRawFallback: false,
             isFullWidth: isFullWidth
+        )
+    }
+
+    /// Current time candidate covering all `tokenCount` active tokens, not recorded by user learning.
+    static func time(
+        _ text: String,
+        tokenCount: Int,
+        badge: String = CurrentTimeCandidates.badge
+    ) -> InputCandidate {
+        InputCandidate(
+            id: CandidateID(text: text, pronunciation: [], tokenRange: 0..<tokenCount),
+            text: text,
+            pronunciation: [],
+            score: 0,
+            isRawFallback: false,
+            badge: badge
         )
     }
 
@@ -133,11 +153,13 @@ enum CandidateItem: Equatable, Sendable {
     }
 
     /// Small corner mark: `注` for raw Zhuyin candidates, `全` for full-width symbols
-    /// or full-width numeric candidates that also exist in half width.
+    /// or full-width numeric candidates that also exist in half width, or a custom
+    /// candidate badge such as `現在的時間`.
     var badge: String? {
         switch self {
         case let .input(candidate):
             if candidate.isRawFallback { return "注" }
+            if let badge = candidate.badge { return badge }
             return candidate.isFullWidth ? "全" : nil
         case .suggestion:
             return nil
@@ -150,7 +172,9 @@ enum CandidateItem: Equatable, Sendable {
         switch self {
         case let .input(candidate):
             if candidate.isRawFallback { return "注音：\(candidate.text)" }
-            return candidate.isFullWidth ? "全形：\(candidate.text)" : candidate.text
+            if candidate.isFullWidth { return "全形：\(candidate.text)" }
+            if let badge = candidate.badge { return "\(badge)：\(candidate.text)" }
+            return candidate.text
         case let .suggestion(text):
             return "建議：\(text)"
         case let .symbol(text):

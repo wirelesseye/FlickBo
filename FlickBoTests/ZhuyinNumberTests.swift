@@ -184,4 +184,84 @@ final class ZhuyinNumberTests: ChineseInputTestCase {
         let snapshot = try learningStore.countSnapshot()
         XCTAssertTrue(snapshot.isEmpty)
     }
+
+    func testCurrentTimeFormatting() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+
+        let afternoon = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 22, hour: 16, minute: 4)))
+        XCTAssertEqual(
+            CurrentTimeCandidates.formattedStrings(for: afternoon, calendar: calendar),
+            ["16:04", "下午4:04", "4:04 PM"]
+        )
+
+        let midnight = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 22, hour: 0, minute: 5)))
+        XCTAssertEqual(
+            CurrentTimeCandidates.formattedStrings(for: midnight, calendar: calendar),
+            ["00:05", "上午12:05", "12:05 AM"]
+        )
+
+        let noon = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 22, hour: 12, minute: 0)))
+        XCTAssertEqual(
+            CurrentTimeCandidates.formattedStrings(for: noon, calendar: calendar),
+            ["12:00", "下午12:00", "12:00 PM"]
+        )
+    }
+
+    @MainActor
+    func testPipelineOffersCurrentTimeCandidatesWithBadge() async throws {
+        let fixedDate = try XCTUnwrap(
+            Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 22, hour: 16, minute: 4))
+        )
+        let store = StubLexiconStore(entries: [
+            LexiconMatch(
+                text: "現在",
+                pronunciation: [
+                    CanonicalSyllable(base: "ㄒㄧㄢ", tone: .fourth),
+                    CanonicalSyllable(base: "ㄗㄞ", tone: .fourth)
+                ],
+                sourceWeight: 0.9
+            ),
+            LexiconMatch(
+                text: "時刻",
+                pronunciation: [
+                    CanonicalSyllable(base: "ㄕ", tone: .second),
+                    CanonicalSyllable(base: "ㄎㄜ", tone: .fourth)
+                ],
+                sourceWeight: 0.9
+            ),
+            LexiconMatch(
+                text: "時間",
+                pronunciation: [
+                    CanonicalSyllable(base: "ㄕ", tone: .second),
+                    CanonicalSyllable(base: "ㄐㄧㄢ", tone: .first)
+                ],
+                sourceWeight: 0.9
+            )
+        ])
+        let pipeline = try LexiconChineseInputPipeline(store: store, now: { fixedDate })
+
+        for (reading, word) in [("ㄒㄧㄢˋㄗㄞˋ", "現在"), ("ㄕˊㄎㄜˋ", "時刻"), ("ㄕˊㄐㄧㄢˉ", "時間")] {
+            let candidates = try await pipeline.candidates(for: zhuyinTokens(reading))
+            XCTAssertEqual(
+                candidates.prefix(4).map(\.text),
+                [word, "16:04", "下午4:04", "4:04 PM"],
+                reading
+            )
+            for index in 1...3 {
+                let item = CandidateItem.input(candidates[index])
+                XCTAssertEqual(item.badge, "現在的時間")
+                XCTAssertEqual(item.accessibilityLabel, "現在的時間：\(candidates[index].text)")
+            }
+        }
+
+        let nowCandidates = try await pipeline.candidates(for: zhuyinTokens("ㄒㄧㄢˋㄗㄞˋ"))
+        let button = CandidateButton()
+        button.update(with: .input(nowCandidates[1]), adjustsTitleToFit: false)
+        XCTAssertEqual(button.badgeText, "現在的時間")
+        XCTAssertEqual(
+            button.titleInsets.right,
+            CandidateMetrics.contentInsets.right + CandidateMetrics.badgeWidth("現在的時間")
+        )
+    }
 }

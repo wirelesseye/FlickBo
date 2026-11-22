@@ -28,6 +28,7 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
     private let userLearningStore: UserLearningStore?
     private let textConverter: CandidateTextConverter
     private let emojiTable: EmojiTable?
+    private let now: @Sendable () -> Date
     private let queue = DispatchQueue(
         label: "com.wirelesseye.FlickBo.ChineseInputPipeline",
         qos: .userInitiated
@@ -113,12 +114,14 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         decoder: Decoder = Decoder(),
         userLearningStore: UserLearningStore? = nil,
         textConverter: CandidateTextConverter = .identity,
-        emojiTable: EmojiTable? = nil
+        emojiTable: EmojiTable? = nil,
+        now: @escaping @Sendable () -> Date = Date.init
     ) throws {
         bundledStore = store
         self.userLearningStore = userLearningStore
         self.textConverter = textConverter
         self.emojiTable = emojiTable
+        self.now = now
         let combined = CombinedLexiconStore(bundled: store, learned: userLearningStore)
         self.store = combined
         parser = try SyllableParser(store: combined)
@@ -247,8 +250,11 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         }
         if promoted.isEmpty {
             result.append(contentsOf: exactCharacters)
-            return withNumbers(
-                withEmoji(localized(result), tokenCount: tokens.count),
+            return withCurrentTime(
+                withNumbers(
+                    withEmoji(localized(result), tokenCount: tokens.count),
+                    tokenCount: tokens.count
+                ),
                 tokenCount: tokens.count
             )
         }
@@ -258,10 +264,36 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         let promotedTexts = Set(promoted.map(\.text))
         result = ranked + result.filter(\.isRawFallback)
         result.append(contentsOf: exactCharacters.filter { !promotedTexts.contains($0.text) })
-        return withNumbers(
-            withEmoji(localized(result), tokenCount: tokens.count),
+        return withCurrentTime(
+            withNumbers(
+                withEmoji(localized(result), tokenCount: tokens.count),
+                tokenCount: tokens.count
+            ),
             tokenCount: tokens.count
         )
+    }
+
+    /// Inserts current 24-hour and 12-hour time candidates right after full-coverage
+    /// trigger words (`現在`, `時刻`, `時間`), similar to `withEmoji`.
+    private func withCurrentTime(_ candidates: [InputCandidate], tokenCount: Int) -> [InputCandidate] {
+        var seen = Set(candidates.map(\.text))
+        var result: [InputCandidate] = []
+        result.reserveCapacity(candidates.count)
+        var formattedTimes: [String]?
+        for candidate in candidates {
+            result.append(candidate)
+            guard !candidate.isRawFallback,
+                  !candidate.isEmoji,
+                  candidate.id.tokenRange == 0..<tokenCount,
+                  CurrentTimeCandidates.shouldOffer(for: candidate.text)
+            else { continue }
+            let times = formattedTimes ?? CurrentTimeCandidates.formattedStrings(for: now())
+            formattedTimes = times
+            for time in times where seen.insert(time).inserted {
+                result.append(.time(time, tokenCount: tokenCount))
+            }
+        }
+        return result
     }
 
     /// Inserts half-width and full-width numeric candidates right after any
