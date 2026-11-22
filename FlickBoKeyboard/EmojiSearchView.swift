@@ -18,6 +18,8 @@ final class EmojiSearchFieldView: UIView {
             for: .normal
         )
         back.tintColor = .label
+        // Transparent otherwise; see `KeyboardSurface`.
+        back.backgroundColor = KeyboardSurface.interactionColor
         back.accessibilityLabel = "返回繪文字"
         back.addAction(UIAction { [weak self] _ in self?.onBack?() }, for: .touchUpInside)
 

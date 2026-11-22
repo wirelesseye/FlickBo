@@ -168,6 +168,8 @@ final class EmojiPanelView: UIView {
         bar.axis = .horizontal
         bar.spacing = 4
         bar.alignment = .fill
+        // The unselected kind buttons are transparent; see `KeyboardSurface`.
+        bar.backgroundColor = KeyboardSurface.interactionColor
         return bar
     }
 
@@ -188,6 +190,8 @@ final class EmojiPanelView: UIView {
         let bar = UIStackView(arrangedSubviews: [back, categoryStack, deleteButton])
         bar.axis = .horizontal
         bar.spacing = 4
+        // The back, category and delete buttons are transparent; see `KeyboardSurface`.
+        bar.backgroundColor = KeyboardSurface.interactionColor
         return bar
     }
 

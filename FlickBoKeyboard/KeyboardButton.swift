@@ -23,7 +23,7 @@ enum KeyHaptics {
 enum KeyboardSurface {
     // Keyboard extensions are hosted in a remote window whose input region can
     // omit fully transparent pixels. Render an imperceptible surface so scrollable
-    // areas stay part of that input region.
+    // areas and buttons without a key background stay part of that input region.
     static let interactionColor = UIColor.systemBackground.withAlphaComponent(0.02)
 }
 
