@@ -18,7 +18,9 @@ Vendor/opencc/                 鎖定版本的 OpenCC 字典、測試案例、�
 Vendor/rime-emoji/             鎖定版本的 rime-emoji 詞對繪文字表、授權與 manifest
 Vendor/unicode-emoji/          鎖定版本的 Unicode emoji-test.txt、授權與 manifest
 Vendor/cldr-annotations/       鎖定版本的 CLDR zh_Hant 繪文字註解、授權與 manifest
-Generated/                     編譯產物（SQLite 詞典、FZGram 語言模型、FZOpenCC 字形轉換、繪文字表、繪文字選單與 report）
+Vendor/rime-prelude/           鎖定版本的 rime-prelude 符號表、授權與 manifest
+Vendor/mozc-kaomoji/           鎖定版本的 Mozc 顏文字選單資料、授權與 manifest
+Generated/                     編譯產物（SQLite 詞典、FZGram 語言模型、FZOpenCC 字形轉換、繪文字表、繪文字選單、符號與顏文字選單與 report）
 ```
 
 ## 架構
@@ -59,7 +61,7 @@ Generated/                     編譯產物（SQLite 詞典、FZGram 語言模�
 
 `FlickBoKeyboard/ChineseInputCoordinator.swift` 負責非同步協調：每次 pending tokens 改變就增加 revision 並進入 loading，但保留既有候選直到新結果抵達，背景完成後只在 revision 與 token snapshot 都相符時套用結果；詞典缺失或查詢失敗時才發布 raw 注音 fallback。`KeyboardDocumentClient` 與 `DocumentEffectApplier` 隔離 `UITextDocumentProxy`，`CandidateBarView` 以水平 `UICollectionView` 提供固定高度的候選列與展開按鈕，`ExpandedCandidateView` 以垂直 `UICollectionView` 提供展開後的候選列表，兩者都只建立可見範圍的 cell，選項依原寬度自動換行排列。
 
-繪文字選單：點按繪文字鍵時，`KeyboardViewController.showEmojiPanel()` 先以 `KeyboardEngine.commitComposition()` 提交組字中的文字（含未選注音），再以 `EmojiPanelView` 取代按鍵區。`EmojiCatalog` 讀取 `flickbo.emojicatalog`（見 [繪文字資料編譯](#繪文字資料編譯)），並依 `EmojiVersion.supported(byOSVersion:)` 隱藏系統字型尚未支援的版本（iOS 17.4 → 15.1、18.4 → 16.0、26.4 → 17.0，其餘 15.0），避免顯示空白方框。面板上方為繪文字搜尋與符號（&%、:-)）分頁，符號分頁目前是停用的預留位置；中間的 `UICollectionView` 以 8 欄正方形格線依分類分段，最近使用排在最前；下方為返回鍵（中文模式顯示「中」、數字「123」、英文「ABC」）、分類列與刪除鍵，點分類會捲動到該段，捲動時分類列跟著標示目前分段。最近使用（`RecentEmojiStore`，最多 32 個）存在 Extension 自己的 `UserDefaults.standard`，不需要完整取用。選取繪文字與一般符號鍵相同，經 `KeyboardEngine` 的 `.symbol` 事件插入；面板不顯示候選列。
+繪文字選單：點按繪文字鍵時，`KeyboardViewController.showEmojiPanel()` 先以 `KeyboardEngine.commitComposition()` 提交組字中的文字（含未選注音），再以 `EmojiPanelView` 取代按鍵區。`EmojiCatalog` 讀取 `flickbo.emojicatalog`（見 [繪文字資料編譯](#繪文字資料編譯)），並依 `EmojiVersion.supported(byOSVersion:)` 隱藏系統字型尚未支援的版本（iOS 17.4 → 15.1、18.4 → 16.0、26.4 → 17.0，其餘 15.0），避免顯示空白方框。面板上方為繪文字搜尋與繪文字、符號（&%）、顏文字（:-)）三個分頁（`PaletteKind`），面板記住上次的分頁（`UserDefaults` 的 `paletteKind`）；每個分頁是一個 `PalettePage`（分類、格線欄數與字級），符號與顏文字由 `SymbolPalettes` 讀取 `flickbo.symbols`（見 [符號與顏文字資料編譯](#符號與顏文字資料編譯)），兩者不提供搜尋，搜尋欄一律搜尋繪文字。中間的 `UICollectionView` 依分類分段（繪文字與符號為 8 欄正方形，顏文字為 3 欄、44 pt 高），最近使用排在最前，全形空格以「全形空格」字樣顯示；下方為返回鍵（中文模式顯示「中」、數字「123」、英文「ABC」）、分類列與刪除鍵，點分類會捲動到該段，捲動時分類列跟著標示目前分段。最近使用（`RecentEmojiStore`，每個分頁各自一份、最多 32 個）存在 Extension 自己的 `UserDefaults.standard`，不需要完整取用。選取項目與一般符號鍵相同，經 `KeyboardEngine` 的 `.symbol` 事件插入；面板不顯示候選列。
 
 繪文字搜尋：點面板上方的搜尋欄後，`isSearchingEmoji` 讓鍵盤改回目前模式的按鍵，候選列上方加一列搜尋欄（鍵盤高度加 43 pt）。搜尋期間 `apply` 把文件 effects 交給 `EmojiSearchQuery`（`KeyboardDocumentClient` 的本機實作，游標固定在結尾）而非宿主 App，所以注音組字、候選與刪除完全沿用原本流程；`contextBeforeInput` 也改讀查詢字串作為語言模型上下文。搜尋時不顯示後續建議、不學習選字，候選中的繪文字也會濾掉。候選列有內容時蓋住結果列，否則結果列以已提交的查詢文字呼叫 `EmojiSearchIndex.search`：比對 rime-emoji 的詞（`flickbo.emoji`）與 CLDR 繁體中文名稱及關鍵字（`flickbo.emojikeywords`，同一個詞先列 rime-emoji 的繪文字，再依 catalog 順序列 CLDR 的），查詢含拉丁字母時另比對 catalog 的 CLDR 英文名稱，依完全相同、開頭相同、包含排序，同組較短的詞在前；結果只取 catalog 中有的繪文字（比對時忽略 U+FE0F），所以沿用 catalog 的寫法並隱藏系統不支援的版本。rime-emoji 詞表是 OpenCC 標準繁體、CLDR 是臺灣常用字形，查詢會以原樣及所選字形的 `CandidateTextConverter.canonical` 轉換結果各搜尋一次，簡體或臺灣字形都能查到。點結果直接插入宿主文件並記入最近使用；搜尋欄左側返回鍵、繪文字鍵與沒有組字時的「完成」鍵都會捨棄查詢並回到面板。
 
@@ -269,6 +271,32 @@ python3 Tools/DictionaryCompiler/compile_dictionary.py build-emoji-keywords
 
 - `parse_cldr_annotations` 讀取 `annotations` 與 `annotationsDerived`（旗幟、ZWJ 序列等組合的名稱），每個繪文字取名稱（`type="tts"`）在前、關鍵字在後並去除重複；`merge_emoji_keywords` 依 catalog 順序以去掉 U+FE0F 的序列比對，`annotations` 優先於 `annotationsDerived`，覆蓋率低於 95% 時編譯失敗。輸出為 `繪文字<TAB>名稱<TAB>關鍵字…`。
 - 產物約 77 KB、涵蓋全部 1,914 個繪文字，納入版控，並只加入 `FlickBoKeyboard` 的 bundle resources；Python 測試確認它與 vendored 來源同步。CLDR 資料檔採 Unicode License v3，與已打包的 `Unicode-LICENSE.txt` 相同。
+
+## 符號與顏文字資料編譯
+
+符號選單來自 rime-prelude 的 `symbols.yaml`，顏文字選單來自 Mozc 為 Google 日本語輸入 Android 版製作的 `src/data/emoticon/categorized.tsv`。只在更新來源版本時下載（需指定 40 字元 commit）：
+
+```sh
+python3 Tools/DictionaryCompiler/compile_dictionary.py fetch-rime-symbols \
+  --commit 082425ea0684bca36474415d4a0e8db9b016487e \
+  --dest Vendor/rime-prelude
+```
+
+```sh
+python3 Tools/DictionaryCompiler/compile_dictionary.py fetch-mozc-kaomoji \
+  --commit 1527a4cd1217cec4611cd4bc8d46f8c66ea79e6a \
+  --dest Vendor/mozc-kaomoji
+```
+
+重建 `Generated/flickbo.symbols`（不需要網路，同時讀取兩個來源）：
+
+```sh
+python3 Tools/DictionaryCompiler/compile_dictionary.py build-symbol-palettes
+```
+
+- `symbol_data.py` 的 `parse_rime_symbols` 讀取 `punctuator/full_shape`（每個按鍵的全形標點，依按鍵順序）與 `punctuator/symbols`（每行一個 `/xx` 捷徑的 YAML flow sequence，支援一般與單引號 scalar）。`SYMBOL_CATEGORIES` 定義每個選單分類收錄哪些捷徑：標點（全形標點、`/bd`、`/bdz`）、圖形與符號、箭頭、數學與上下標、編號、單位貨幣與日期、注音與外文字母；卦名、干支、節氣等中文詞、帶附加符號的拉丁字母、合字、部首與逐行假名清單不收錄。同一分類中的重複項目只保留第一個；缺少捷徑、格式錯誤，或值含空白（全形空格除外）及控制字元時編譯失敗。
+- `parse_mozc_categorized` 略過註解與空行，把 Mozc 分類對應到開心、冒汗、驚訝、難過、不滿，列在多個分類的項目會出現在每個分類，同一分類中的重複只保留第一個；日文讀音不使用。遇到未知分類、空值、控制字元或空分類時編譯失敗。
+- 輸出為 `選單<TAB>分類<TAB>值`，依分類順序、分類內依原順序。產物約 45 KB、2,173 個符號與 199 個顏文字，納入版控，並只加入 `FlickBoKeyboard` 的 bundle resources；Python 測試確認它與 vendored 來源同步。rime-prelude 採 LGPL-3.0，授權檔與已打包的 rime-emoji `LICENSE` 內容相同；Mozc 採 BSD 3-Clause License，授權全文 `Vendor/mozc-kaomoji/Mozc-LICENSE.txt` 打包進主 App 與 Extension。
 
 ## 效能
 

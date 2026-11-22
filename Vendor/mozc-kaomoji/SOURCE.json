@@ -1,0 +1,17 @@
+{
+  "repository": "https://github.com/google/mozc",
+  "commit": "1527a4cd1217cec4611cd4bc8d46f8c66ea79e6a",
+  "formatVersion": 2,
+  "files": {
+    "emoticon-categorized.tsv": {
+      "path": "src/data/emoticon/categorized.tsv",
+      "sha256": "4497c16a706de418b05e73eaddbce13e5d3390e7c2de71200b28c0c97ae5c4fc"
+    },
+    "Mozc-LICENSE.txt": {
+      "path": "LICENSE",
+      "sha256": "44cdd923b91ea9199293abecc2762c70c87dbf1e581c027a94c416368d1a648c"
+    }
+  },
+  "kaomojiCount": 199,
+  "retrievedAt": "2026-11-22T03:47:33Z"
+}

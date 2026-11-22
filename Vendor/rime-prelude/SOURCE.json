@@ -1,0 +1,17 @@
+{
+  "repository": "https://github.com/rime/rime-prelude",
+  "commit": "082425ea0684bca36474415d4a0e8db9b016487e",
+  "formatVersion": 2,
+  "files": {
+    "symbols.yaml": {
+      "path": "symbols.yaml",
+      "sha256": "6d08969525bd66c67abf1791c99928079356bd0e673386c49c1959d2a52fdbba"
+    },
+    "LICENSE": {
+      "path": "LICENSE",
+      "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768"
+    }
+  },
+  "symbolCount": 2173,
+  "retrievedAt": "2026-11-22T03:47:33Z"
+}

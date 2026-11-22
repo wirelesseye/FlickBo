@@ -63,3 +63,19 @@ Terra 部分提供字音、多音字與明確詞條，依 CC BY-SA 3.0 提供；
 - 授權：Unicode License v3，<https://www.unicode.org/license.txt>（全文見 `Vendor/cldr-annotations/CLDR-LICENSE.txt`）
 
 轉換包括依 `emoji-test.txt` 的繪文字清單取出名稱與關鍵字、去除重複，並以 tab 分隔輸出。
+
+## flickbo.symbols
+
+符號部分：
+
+- 上游：<https://github.com/rime/rime-prelude>（`symbols.yaml`）
+- Commit：`082425ea0684bca36474415d4a0e8db9b016487e`
+- 授權：GNU LGPL v3.0，<https://www.gnu.org/licenses/lgpl-3.0.html>（全文見 `Vendor/rime-prelude/LICENSE`）
+
+顏文字部分：
+
+- 上游：<https://github.com/google/mozc>（`src/data/emoticon/categorized.tsv`）
+- Commit：`1527a4cd1217cec4611cd4bc8d46f8c66ea79e6a`
+- 授權：BSD 3-Clause License（全文見 `Vendor/mozc-kaomoji/Mozc-LICENSE.txt`）
+
+轉換包括把 rime-prelude 的全形標點與部分 `/xx` 符號清單分組、捨棄 Mozc 的日文讀音、去除同一分類中的重複項目，並依選單與分類順序輸出 `選單<TAB>分類<TAB>值`。

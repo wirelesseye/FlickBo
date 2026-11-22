@@ -1,38 +1,79 @@
 import UIKit
 
-/// Emoji palette shown in place of the keys. The top bar opens emoji search
-/// and holds the symbol kinds (emoji, symbols, kaomoji); only emoji work for now.
-/// The bottom bar returns to the keys, jumps between emoji categories and
-/// deletes. The grid scrolls through every category, and the bottom bar
-/// follows the category being shown.
+/// The palettes the panel switches between from its top bar.
+enum PaletteKind: String, CaseIterable {
+    case emoji
+    case symbol
+    case kaomoji
+
+    var title: String {
+        switch self {
+        case .emoji: "繪文字"
+        case .symbol: "符號"
+        case .kaomoji: "顏文字"
+        }
+    }
+}
+
+/// What one palette shows: its categories in order and how its grid is laid out.
+struct PalettePage {
+    enum Tab {
+        /// An SF Symbol name.
+        case image(String)
+        case text(String)
+    }
+
+    struct Section {
+        let title: String
+        let tab: Tab
+        let items: [String]
+    }
+
+    let sections: [Section]
+    let columns: Int
+    /// Row height; nil makes square cells.
+    var rowHeight: CGFloat?
+    let fontSize: CGFloat
+}
+
+/// Emoji, symbol and kaomoji palettes shown in place of the keys. The top bar
+/// opens emoji search and switches palettes. The bottom bar returns to the
+/// keys, jumps between the current palette's categories and deletes. The grid
+/// scrolls through every category, and the bottom bar follows the category
+/// being shown.
 final class EmojiPanelView: UIView {
     enum Metrics {
         static let barHeight: CGFloat = 40
-        static let columns = 8
         static let headerHeight: CGFloat = 26
-        static let emojiFontSize: CGFloat = 30
     }
 
     /// Shared with the search field so both magnifiers are the same size.
     static let searchSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 12)
 
-    var onSelect: ((String) -> Void)?
+    var onSelect: ((PaletteKind, String) -> Void)?
+    var onKindChange: ((PaletteKind) -> Void)?
     var onBack: (() -> Void)?
     var onSearch: (() -> Void)?
 
-    private let sections: [EmojiSection]
+    private let pages: [PaletteKind: PalettePage]
+    private(set) var kind: PaletteKind
+    private var sections: [PalettePage.Section] = []
+    private let layout = EmojiGridLayout()
     private let collectionView: UICollectionView
-    private var categoryButtons: [EmojiCategory: EmojiCategoryButton] = [:]
-    private var selectedCategory: EmojiCategory?
+    private var kindButtons: [PaletteKind: UIButton] = [:]
+    private let categoryStack = UIStackView()
+    private var categoryButtons: [EmojiCategoryButton] = []
+    private var selectedSection: Int?
     private var isScrollingToCategory = false
 
     /// `deleteButton` keeps the keyboard's own repeat behavior.
-    init(sections: [EmojiSection], backTitle: String, deleteButton: UIView) {
-        self.sections = sections.filter { !$0.entries.isEmpty }
-        collectionView = UICollectionView(frame: .zero, collectionViewLayout: EmojiGridLayout())
+    init(pages: [PaletteKind: PalettePage], kind: PaletteKind, backTitle: String, deleteButton: UIView) {
+        self.pages = pages
+        self.kind = pages[kind] == nil ? .emoji : kind
+        collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         super.init(frame: .zero)
         buildViews(backTitle: backTitle, deleteButton: deleteButton)
-        selectCategory(self.sections.first?.category)
+        show(self.kind)
     }
 
     @available(*, unavailable)
@@ -93,37 +134,37 @@ final class EmojiPanelView: UIView {
         search.accessibilityLabel = "搜尋繪文字"
         search.addAction(UIAction { [weak self] _ in self?.onSearch?() }, for: .touchUpInside)
 
-        let kinds: [(title: String?, image: String?, label: String, isActive: Bool)] = [
-            (nil, "face.smiling", "繪文字", true),
-            ("&%", nil, "符號（尚未提供）", false),
-            (":-)", nil, "顏文字（尚未提供）", false),
+        let kinds: [(kind: PaletteKind, title: String?, image: String?)] = [
+            (.emoji, nil, "face.smiling"),
+            (.symbol, "&%", nil),
+            (.kaomoji, ":-)", nil),
         ]
-        let kindButtons = kinds.map { kind -> UIButton in
-            var configuration = kind.isActive ? UIButton.Configuration.filled() : UIButton.Configuration.plain()
+        let buttons = kinds.map { item -> UIButton in
+            var configuration = UIButton.Configuration.plain()
             configuration.cornerStyle = .capsule
-            configuration.baseBackgroundColor = KeyboardButton.standardKeyColor
             configuration.baseForegroundColor = .label
-            if let image = kind.image {
+            if let image = item.image {
                 configuration.image = UIImage(
                     systemName: image,
                     withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .regular)
                 )
             }
-            if let title = kind.title {
+            if let title = item.title {
                 configuration.attributedTitle = AttributedString(
                     title,
                     attributes: AttributeContainer([.font: UIFont.systemFont(ofSize: 15, weight: .semibold)])
                 )
             }
             let button = UIButton(configuration: configuration)
-            button.isEnabled = kind.isActive
-            button.accessibilityLabel = kind.label
-            if kind.isActive { button.accessibilityTraits.insert(.selected) }
+            button.isEnabled = pages[item.kind] != nil
+            button.accessibilityLabel = item.kind.title
             button.widthAnchor.constraint(equalToConstant: 52).isActive = true
+            button.addAction(UIAction { [weak self] _ in self?.switchKind(to: item.kind) }, for: .touchUpInside)
+            kindButtons[item.kind] = button
             return button
         }
 
-        let bar = UIStackView(arrangedSubviews: [search] + kindButtons)
+        let bar = UIStackView(arrangedSubviews: [search] + buttons)
         bar.axis = .horizontal
         bar.spacing = 4
         bar.alignment = .fill
@@ -140,75 +181,120 @@ final class EmojiPanelView: UIView {
         back.addAction(UIAction { [weak self] _ in self?.onBack?() }, for: .touchUpInside)
         back.widthAnchor.constraint(equalToConstant: 42).isActive = true
 
-        let categories = UIStackView()
-        categories.axis = .horizontal
-        categories.distribution = .fillEqually
-        for section in sections {
-            let category = section.category
-            let button = EmojiCategoryButton(type: .system)
-            button.setImage(
-                UIImage(
-                    systemName: category.systemImage,
-                    withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .regular)
-                ),
-                for: .normal
-            )
-            button.tintColor = .secondaryLabel
-            button.accessibilityLabel = category.title
-            button.addAction(UIAction { [weak self] _ in self?.scroll(to: category) }, for: .touchUpInside)
-            categoryButtons[category] = button
-            categories.addArrangedSubview(button)
-        }
+        categoryStack.axis = .horizontal
+        categoryStack.distribution = .fillEqually
 
         deleteButton.widthAnchor.constraint(equalToConstant: 42).isActive = true
-        let bar = UIStackView(arrangedSubviews: [back, categories, deleteButton])
+        let bar = UIStackView(arrangedSubviews: [back, categoryStack, deleteButton])
         bar.axis = .horizontal
         bar.spacing = 4
         return bar
     }
 
+    // MARK: - Palettes
+
+    private func switchKind(to kind: PaletteKind) {
+        guard kind != self.kind, pages[kind] != nil else { return }
+        show(kind)
+        onKindChange?(kind)
+    }
+
+    private func show(_ kind: PaletteKind) {
+        guard let page = pages[kind] else { return }
+        self.kind = kind
+        sections = page.sections.filter { !$0.items.isEmpty }
+        for (buttonKind, button) in kindButtons {
+            let isCurrent = buttonKind == kind
+            button.configuration?.background.backgroundColor = isCurrent ? KeyboardButton.standardKeyColor : .clear
+            if isCurrent {
+                button.accessibilityTraits.insert(.selected)
+            } else {
+                button.accessibilityTraits.remove(.selected)
+            }
+        }
+
+        layout.columns = page.columns
+        layout.rowHeight = page.rowHeight
+        layout.invalidateLayout()
+        collectionView.reloadData()
+        // Lay out the new sections before scrolling: the scroll callback asks
+        // for section headers, and the old layout would answer with sections
+        // the new palette may not have.
+        isScrollingToCategory = true
+        collectionView.layoutIfNeeded()
+        collectionView.setContentOffset(.zero, animated: false)
+        isScrollingToCategory = false
+
+        categoryButtons.forEach { $0.removeFromSuperview() }
+        categoryButtons = sections.enumerated().map { index, section in
+            let button = EmojiCategoryButton(type: .system)
+            switch section.tab {
+            case let .image(name):
+                button.setImage(
+                    UIImage(systemName: name, withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .regular)),
+                    for: .normal
+                )
+            case let .text(text):
+                button.setTitle(text, for: .normal)
+                button.titleLabel?.font = .systemFont(ofSize: 13, weight: .medium)
+                button.titleLabel?.adjustsFontSizeToFitWidth = true
+                button.titleLabel?.minimumScaleFactor = 0.6
+            }
+            button.tintColor = .secondaryLabel
+            button.accessibilityLabel = section.title
+            button.addAction(UIAction { [weak self] _ in self?.scroll(toSection: index) }, for: .touchUpInside)
+            categoryStack.addArrangedSubview(button)
+            return button
+        }
+        selectedSection = nil
+        selectSection(sections.isEmpty ? nil : 0)
+    }
+
     // MARK: - Categories
 
-    private func selectCategory(_ category: EmojiCategory?) {
-        guard category != selectedCategory else { return }
-        if let selectedCategory, let button = categoryButtons[selectedCategory] {
+    private func selectSection(_ section: Int?) {
+        guard section != selectedSection else { return }
+        if let selectedSection, categoryButtons.indices.contains(selectedSection) {
+            let button = categoryButtons[selectedSection]
             button.tintColor = .secondaryLabel
             button.isCurrent = false
             button.accessibilityTraits.remove(.selected)
         }
-        selectedCategory = category
-        if let category, let button = categoryButtons[category] {
+        selectedSection = section
+        if let section, categoryButtons.indices.contains(section) {
+            let button = categoryButtons[section]
             button.tintColor = .label
             button.isCurrent = true
             button.accessibilityTraits.insert(.selected)
         }
     }
 
-    private func scroll(to category: EmojiCategory) {
-        guard let section = sections.firstIndex(where: { $0.category == category }) else { return }
+    private func scroll(toSection section: Int) {
+        guard sections.indices.contains(section) else { return }
         collectionView.layoutIfNeeded()
-        let indexPath = IndexPath(item: 0, section: section)
+        guard section < collectionView.numberOfSections else { return }
         guard let header = collectionView.layoutAttributesForSupplementaryElement(
             ofKind: UICollectionView.elementKindSectionHeader,
-            at: indexPath
+            at: IndexPath(item: 0, section: section)
         ) else { return }
         let maximumOffset = max(0, collectionView.contentSize.height - collectionView.bounds.height)
-        selectCategory(category)
+        selectSection(section)
         isScrollingToCategory = true
         collectionView.setContentOffset(CGPoint(x: 0, y: min(header.frame.minY, maximumOffset)), animated: false)
         isScrollingToCategory = false
     }
 
-    /// The category whose content sits at the top of the visible grid.
-    private func categoryAtTop() -> EmojiCategory? {
+    /// The section whose content sits at the top of the visible grid.
+    private func sectionAtTop() -> Int? {
+        guard !sections.isEmpty else { return nil }
         let probe = collectionView.contentOffset.y + Metrics.headerHeight
-        var current = sections.first?.category
-        for (index, section) in sections.enumerated() {
+        var current = 0
+        for index in sections.indices where index < collectionView.numberOfSections {
             guard let header = collectionView.layoutAttributesForSupplementaryElement(
                 ofKind: UICollectionView.elementKindSectionHeader,
                 at: IndexPath(item: 0, section: index)
             ) else { continue }
-            if header.frame.minY <= probe { current = section.category } else { break }
+            if header.frame.minY <= probe { current = index } else { break }
         }
         return current
     }
@@ -220,12 +306,16 @@ extension EmojiPanelView: UICollectionViewDataSource, UICollectionViewDelegate {
     }
 
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        sections[section].entries.count
+        sections[section].items.count
     }
 
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: EmojiCell.reuseIdentifier, for: indexPath)
-        (cell as? EmojiCell)?.configure(with: sections[indexPath.section].entries[indexPath.item])
+        (cell as? EmojiCell)?.configure(
+            with: sections[indexPath.section].items[indexPath.item],
+            kind: kind,
+            fontSize: pages[kind]?.fontSize ?? 30
+        )
         return cell
     }
 
@@ -239,25 +329,28 @@ extension EmojiPanelView: UICollectionViewDataSource, UICollectionViewDelegate {
             withReuseIdentifier: EmojiSectionHeader.reuseIdentifier,
             for: indexPath
         )
-        (header as? EmojiSectionHeader)?.title = sections[indexPath.section].category.title
+        (header as? EmojiSectionHeader)?.title = sections[indexPath.section].title
         return header
     }
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         collectionView.deselectItem(at: indexPath, animated: false)
         KeyHaptics.keyDown()
-        onSelect?(sections[indexPath.section].entries[indexPath.item].emoji)
+        onSelect?(kind, sections[indexPath.section].items[indexPath.item])
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         guard !isScrollingToCategory else { return }
-        selectCategory(categoryAtTop())
+        selectSection(sectionAtTop())
     }
 }
 
-/// A flow layout with `EmojiPanelView.Metrics.columns` square cells per row,
-/// sized from the grid's current width.
+/// A flow layout with `columns` cells per row, sized from the grid's current
+/// width: square, or `rowHeight` tall.
 private final class EmojiGridLayout: UICollectionViewFlowLayout {
+    var columns = 8
+    var rowHeight: CGFloat?
+
     override init() {
         super.init()
         minimumInteritemSpacing = 0
@@ -274,9 +367,10 @@ private final class EmojiGridLayout: UICollectionViewFlowLayout {
     override func prepare() {
         if let width = collectionView?.bounds.width, width > 0 {
             // Rounded down, so a full row always fits.
-            let side = floor(width / CGFloat(EmojiPanelView.Metrics.columns))
-            if itemSize.width != side {
-                itemSize = CGSize(width: side, height: side)
+            let side = floor(width / CGFloat(max(1, columns)))
+            let size = CGSize(width: side, height: rowHeight ?? side)
+            if itemSize != size {
+                itemSize = size
             }
         }
         super.prepare()
@@ -294,7 +388,6 @@ private final class EmojiCell: UICollectionViewCell {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        label.font = .systemFont(ofSize: EmojiPanelView.Metrics.emojiFontSize)
         label.textAlignment = .center
         label.adjustsFontSizeToFitWidth = true
         label.minimumScaleFactor = 0.5
@@ -319,10 +412,28 @@ private final class EmojiCell: UICollectionViewCell {
         didSet { contentView.backgroundColor = isHighlighted ? KeyboardButton.standardKeyColor : .clear }
     }
 
-    func configure(with entry: EmojiEntry) {
-        label.text = entry.emoji
-        accessibilityLabel = entry.emoji
-        accessibilityIdentifier = "emoji-\(entry.emoji)"
+    func configure(with item: String, kind: PaletteKind, fontSize: CGFloat) {
+        // Spaces would draw nothing, so they are shown by name.
+        if let name = Self.spaceName(item) {
+            label.text = name
+            label.font = .systemFont(ofSize: 12)
+            label.textColor = .secondaryLabel
+            accessibilityLabel = name
+        } else {
+            label.text = item
+            label.font = .systemFont(ofSize: fontSize)
+            label.textColor = .label
+            accessibilityLabel = item
+        }
+        accessibilityIdentifier = "\(kind.rawValue)-\(item)"
+    }
+
+    private static func spaceName(_ item: String) -> String? {
+        switch item {
+        case " ": "空格"
+        case "\u{3000}": "全形空格"
+        default: nil
+        }
     }
 }
 

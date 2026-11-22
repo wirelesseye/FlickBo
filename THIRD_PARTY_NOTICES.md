@@ -68,6 +68,28 @@ FlickBo（滑注音）包含由第三方資料轉換而成的中文詞典。以�
 
 使用的原始檔為 `common/annotations/zh_Hant.xml` 與 `common/annotationsDerived/zh_Hant.xml`，內容為繪文字的繁體中文名稱與搜尋關鍵字。FlickBo 依 Unicode `emoji-test.txt` 的繪文字清單取出每個繪文字的名稱與關鍵字，去除重複後輸出為 `flickbo.emojikeywords`，供繪文字搜尋使用。轉換工具及來源 manifest 可在 FlickBo repository 的 `Tools/DictionaryCompiler/emoji_data.py` 與 `Vendor/cldr-annotations/` 找到。
 
+## rime-prelude
+
+- 名稱：rime-prelude（Rime 基礎設定，`symbols.yaml` 符號表）
+- 作者／維護者：Rime contributors
+- 來源：<https://github.com/rime/rime-prelude>
+- 使用版本：commit `082425ea0684bca36474415d4a0e8db9b016487e`
+- 授權：GNU Lesser General Public License v3.0
+- 授權全文：隨 App 一併提供的 `LICENSE`（與 rime-emoji 的授權檔內容相同），或 <https://www.gnu.org/licenses/lgpl-3.0.html>
+
+使用的原始檔為 `symbols.yaml`，內容為 Rime 以 `/xx` 輸入的符號清單與全形標點對應。FlickBo 取 `punctuator/full_shape` 的全形標點，以及 `punctuator/symbols` 中的部分清單，依標點、圖形與符號、箭頭、數學與上下標、編號、單位貨幣與日期、注音與外文字母分組，去除同一分類中的重複項目後輸出為 `flickbo.symbols` 的符號部分，作為符號選單的內容；未使用卦名、干支、節氣、帶附加符號的拉丁字母、部首等清單。轉換工具及來源 manifest 可在 FlickBo repository 的 `Tools/DictionaryCompiler/symbol_data.py` 與 `Vendor/rime-prelude/` 找到。
+
+## Mozc Emoticon Palette
+
+- 名稱：Mozc 顏文字選單資料
+- 作者／維護者：Google Inc.
+- 來源：<https://github.com/google/mozc>
+- 使用版本：commit `1527a4cd1217cec4611cd4bc8d46f8c66ea79e6a`
+- 授權：BSD 3-Clause License
+- 授權全文：隨 App 一併提供的 `Mozc-LICENSE.txt`，或 <https://github.com/google/mozc/blob/master/LICENSE>
+
+使用的原始檔為 `src/data/emoticon/categorized.tsv`，內容為分類好的顏文字，原本供 Google 日本語輸入 Android 版的選單使用。FlickBo 只保留顏文字與分類，捨棄日文讀音，去除同一分類中的重複項目後輸出為 `flickbo.symbols` 的顏文字部分，作為顏文字選單的內容。Mozc 授權檔中 NAIST 與沖繩辭書的條款只適用於 `src/data/dictionary*`，FlickBo 未使用這些檔案。轉換工具及來源 manifest 可在 FlickBo repository 的 `Tools/DictionaryCompiler/symbol_data.py` 與 `Vendor/mozc-kaomoji/` 找到。
+
 ## OpenCC
 
 - 名稱：Open Chinese Convert（OpenCC）字典資料

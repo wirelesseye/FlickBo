@@ -36,6 +36,10 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     private var isShowingEmojiPanel = false
     private var emojiCatalog: EmojiCatalog?
     private let recentEmoji = RecentEmojiStore(defaults: .standard)
+    private let recentSymbols = RecentEmojiStore(defaults: .standard, key: RecentEmojiStore.symbolKey)
+    private let recentKaomoji = RecentEmojiStore(defaults: .standard, key: RecentEmojiStore.kaomojiKey)
+    private var symbolPalettes: SymbolPalettes?
+    private static let paletteKindKey = "paletteKind"
     /// Emoji search shows the keys with a search field on top; document
     /// effects go to `emojiSearchQuery` instead of the host app meanwhile.
     private var isSearchingEmoji = false
@@ -465,20 +469,23 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     }
 
     private func buildEmojiPanel() {
-        // Recent emoji are read when the palette opens, so picks do not reorder it while open.
-        let recent = recentEmoji.emoji.map { EmojiEntry(emoji: $0, name: "") }
-        let sections = (recent.isEmpty ? [] : [EmojiSection(category: .recent, entries: recent)])
-            + (loadedEmojiCatalog()?.sections ?? [])
+        // Recent items are read when the palette opens, so picks do not reorder it while open.
         let deleteButton = makeButton(for: .delete)
         deleteButton.normalColor = .clear
+        let savedKind = UserDefaults.standard.string(forKey: Self.paletteKindKey).flatMap(PaletteKind.init(rawValue:))
         let panel = EmojiPanelView(
-            sections: sections,
+            pages: palettePages(),
+            kind: savedKind ?? .emoji,
             backTitle: emojiPanelBackTitle,
             deleteButton: deleteButton
         )
-        panel.onSelect = { [weak self] emoji in
-            self?.recentEmoji.record(emoji)
-            self?.handle(.symbol(emoji))
+        panel.onSelect = { [weak self] kind, item in
+            guard let self else { return }
+            recentStore(for: kind).record(item)
+            handle(.symbol(item))
+        }
+        panel.onKindChange = { kind in
+            UserDefaults.standard.set(kind.rawValue, forKey: Self.paletteKindKey)
         }
         panel.onBack = { [weak self] in self?.hideEmojiPanel() }
         panel.onSearch = { [weak self] in self?.openEmojiSearch() }
@@ -490,6 +497,89 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
             panel.topAnchor.constraint(equalTo: view.topAnchor, constant: 7),
             panel.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10)
         ])
+    }
+
+    private func recentStore(for kind: PaletteKind) -> RecentEmojiStore {
+        switch kind {
+        case .emoji: recentEmoji
+        case .symbol: recentSymbols
+        case .kaomoji: recentKaomoji
+        }
+    }
+
+    private func loadedSymbolPalettes() -> SymbolPalettes? {
+        if symbolPalettes == nil {
+            do {
+                symbolPalettes = try SymbolPalettes(bundle: .main)
+            } catch {
+                Self.emojiLogger.error("symbol palettes unavailable: \(String(describing: error), privacy: .public)")
+            }
+        }
+        return symbolPalettes
+    }
+
+    private func palettePages() -> [PaletteKind: PalettePage] {
+        func recentSection(_ kind: PaletteKind) -> [PalettePage.Section] {
+            let items = recentStore(for: kind).emoji
+            return items.isEmpty ? [] : [PalettePage.Section(title: "最近使用", tab: .image("clock"), items: items)]
+        }
+        var pages: [PaletteKind: PalettePage] = [:]
+        let emoji = (loadedEmojiCatalog()?.sections ?? []).map { section in
+            PalettePage.Section(
+                title: section.category.title,
+                tab: .image(section.category.systemImage),
+                items: section.entries.map(\.emoji)
+            )
+        }
+        pages[.emoji] = PalettePage(sections: recentSection(.emoji) + emoji, columns: 8, fontSize: 30)
+        if let palettes = loadedSymbolPalettes() {
+            let symbols = palettes.symbols.map { section in
+                PalettePage.Section(
+                    title: section.category.title,
+                    tab: .text(Self.paletteTab(for: section.category)),
+                    items: section.items
+                )
+            }
+            pages[.symbol] = PalettePage(sections: recentSection(.symbol) + symbols, columns: 8, fontSize: 24)
+            let kaomoji = palettes.kaomoji.map { section in
+                PalettePage.Section(
+                    title: section.category.title,
+                    tab: .text(Self.paletteTab(for: section.category)),
+                    items: section.items
+                )
+            }
+            pages[.kaomoji] = PalettePage(
+                sections: recentSection(.kaomoji) + kaomoji,
+                columns: 3,
+                rowHeight: 44,
+                fontSize: 16
+            )
+        }
+        return pages
+    }
+
+    private static func paletteTab(for category: SymbolCategory) -> String {
+        switch category {
+        case .recent: "↺"
+        case .punctuation: "，。"
+        case .shapes: "☆♪"
+        case .arrows: "→"
+        case .math: "±"
+        case .numbers: "①"
+        case .units: "℃"
+        case .letters: "ㄅα"
+        }
+    }
+
+    private static func paletteTab(for category: KaomojiCategory) -> String {
+        switch category {
+        case .recent: "↺"
+        case .smile: "^^"
+        case .sweat: "^^;"
+        case .surprise: "@_@"
+        case .sadness: "T_T"
+        case .displeasure: "-_-"
+        }
     }
 
     private var emojiPanelBackTitle: String {

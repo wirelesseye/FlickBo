@@ -36,6 +36,15 @@ from emoji_data import (
     parse_emoji_test,
     parse_emoji_words,
 )
+from symbol_data import (
+    KAOMOJI_CATEGORIES,
+    PALETTE_FORMAT_VERSION,
+    PaletteFormatError,
+    format_palettes,
+    parse_mozc_categorized,
+    parse_rime_symbols,
+    symbol_palette,
+)
 from octagram import FZGRAM_DEFAULT_BLOCK_SIZE, FZGram, GramFormatError, read_gram, write_fzgram
 from pinyin_to_zhuyin import PinyinError, convert_syllable, strip_tone
 
@@ -65,6 +74,11 @@ UNICODE_LICENSE_URL = "https://www.unicode.org/license.txt"
 UNICODE_VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 CLDR_REPOSITORY = "https://github.com/unicode-org/cldr"
 CLDR_RAW_BASE_URL = "https://raw.githubusercontent.com/unicode-org/cldr"
+RIME_PRELUDE_REPOSITORY = "https://github.com/rime/rime-prelude"
+RIME_PRELUDE_RAW_BASE_URL = "https://raw.githubusercontent.com/rime/rime-prelude"
+MOZC_REPOSITORY = "https://github.com/google/mozc"
+MOZC_RAW_BASE_URL = "https://raw.githubusercontent.com/google/mozc"
+MAXIMUM_PALETTE_BYTES = 256 * 1024
 MAXIMUM_OPENCC_BYTES = 8 * 1024 * 1024
 MAXIMUM_GRAMMAR_BYTES = 64 * 1024 * 1024
 MAXIMUM_GRAMMAR_KEY_CHARACTERS = 8
@@ -2306,6 +2320,133 @@ def command_build_emoji_keywords(args: argparse.Namespace) -> int:
     return 0
 
 
+def rime_symbol_source_files() -> dict[str, str]:
+    """Local file name -> path inside the rime-prelude repository."""
+    return {"symbols.yaml": "symbols.yaml", "LICENSE": "LICENSE"}
+
+
+def mozc_kaomoji_source_files() -> dict[str, str]:
+    """Local file name -> path inside the Mozc repository."""
+    return {
+        "emoticon-categorized.tsv": "src/data/emoticon/categorized.tsv",
+        "Mozc-LICENSE.txt": "LICENSE",
+    }
+
+
+def parse_symbol_source(text: str) -> dict[str, list[str]]:
+    return symbol_palette(parse_rime_symbols(text, "symbols.yaml"), "symbols.yaml")
+
+
+def parse_kaomoji_source(text: str) -> dict[str, list[str]]:
+    return parse_mozc_categorized(text, "src/data/emoticon/categorized.tsv", KAOMOJI_CATEGORIES)
+
+
+def fetch_palette_source(
+    command: str,
+    args: argparse.Namespace,
+    repository: str,
+    raw_base_url: str,
+    source_files: dict[str, str],
+    parse,
+    data_name: str,
+    count_key: str,
+) -> int:
+    if not validate_commit(args.commit):
+        print(f"{command}: --commit must be a full 40-character lowercase hex commit", file=sys.stderr)
+        return 2
+    destination = Path(args.dest)
+    files = {name: download(f"{raw_base_url}/{args.commit}/{path}") for name, path in source_files.items()}
+    try:
+        palette = parse(files[data_name].decode("utf-8"))
+    except (PaletteFormatError, UnicodeDecodeError) as error:
+        print(f"{command}: invalid palette data: {error}", file=sys.stderr)
+        return 1
+    manifest = {
+        "repository": repository,
+        "commit": args.commit,
+        "formatVersion": PALETTE_FORMAT_VERSION,
+        "files": {
+            name: {"path": path, "sha256": sha256_bytes(files[name])}
+            for name, path in source_files.items()
+        },
+        count_key: sum(len(values) for values in palette.values()),
+        "retrievedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    destination.mkdir(parents=True, exist_ok=True)
+    for name, data in files.items():
+        (destination / name).write_bytes(data)
+    (destination / "SOURCE.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"{command}: wrote {len(files)} files to {destination}")
+    return 0
+
+
+def command_fetch_rime_symbols(args: argparse.Namespace) -> int:
+    return fetch_palette_source(
+        "fetch-rime-symbols", args, RIME_PRELUDE_REPOSITORY, RIME_PRELUDE_RAW_BASE_URL,
+        rime_symbol_source_files(), parse_symbol_source, "symbols.yaml", "symbolCount",
+    )
+
+
+def command_fetch_mozc_kaomoji(args: argparse.Namespace) -> int:
+    return fetch_palette_source(
+        "fetch-mozc-kaomoji", args, MOZC_REPOSITORY, MOZC_RAW_BASE_URL,
+        mozc_kaomoji_source_files(), parse_kaomoji_source, "emoticon-categorized.tsv", "kaomojiCount",
+    )
+
+
+def verify_palette_source(directory: Path, manifest_path: Path, source_files: dict[str, str]) -> None:
+    manifest = load_manifest(manifest_path)
+    if manifest.get("formatVersion") != PALETTE_FORMAT_VERSION:
+        raise CompileFailure(f"{manifest_path}: unsupported formatVersion {manifest.get('formatVersion')!r}")
+    verify_source_hashes(manifest, manifest_path, directory, source_files)
+
+
+def build_symbol_palettes(
+    symbol_directory: Path,
+    symbol_manifest_path: Path,
+    kaomoji_directory: Path,
+    kaomoji_manifest_path: Path,
+    output_path: Path,
+) -> tuple[int, int]:
+    """Returns the entry count and output size."""
+    verify_palette_source(symbol_directory, symbol_manifest_path, rime_symbol_source_files())
+    verify_palette_source(kaomoji_directory, kaomoji_manifest_path, mozc_kaomoji_source_files())
+    try:
+        palettes = {
+            "symbol": parse_symbol_source((symbol_directory / "symbols.yaml").read_text(encoding="utf-8")),
+            "kaomoji": parse_kaomoji_source(
+                (kaomoji_directory / "emoticon-categorized.tsv").read_text(encoding="utf-8")
+            ),
+        }
+    except PaletteFormatError as error:
+        raise CompileFailure(str(error)) from error
+    text = format_palettes(palettes)
+    data = text.encode("utf-8")
+    if len(data) > MAXIMUM_PALETTE_BYTES:
+        raise CompileFailure(f"palettes are {len(data)} bytes, above {MAXIMUM_PALETTE_BYTES}")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(data)
+    return text.count("\n"), len(data)
+
+
+def command_build_symbol_palettes(args: argparse.Namespace) -> int:
+    try:
+        count, size = build_symbol_palettes(
+            Path(args.symbols_dir),
+            Path(args.symbols_manifest),
+            Path(args.kaomoji_dir),
+            Path(args.kaomoji_manifest),
+            Path(args.output),
+        )
+    except (CompileFailure, OSError, UnicodeDecodeError) as failure:
+        print(f"build-symbol-palettes: failed: {failure}", file=sys.stderr)
+        return 1
+    print(f"build-symbol-palettes: {count} entries, {size} bytes")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Compile the pinned Rime sources into the SQLite dictionary and FZGram grammar"
@@ -2423,6 +2564,30 @@ def main(argv: list[str] | None = None) -> int:
     build_keywords.add_argument("--cldr-manifest", default="Vendor/cldr-annotations/SOURCE.json")
     build_keywords.add_argument("--output", default="Generated/flickbo.emojikeywords")
     build_keywords.set_defaults(func=command_build_emoji_keywords)
+
+    fetch_rime_symbols = subparsers.add_parser(
+        "fetch-rime-symbols", help="download rime-prelude's symbols.yaml and license at a pinned commit"
+    )
+    fetch_rime_symbols.add_argument("--commit", required=True, help="full rime-prelude commit hash")
+    fetch_rime_symbols.add_argument("--dest", default="Vendor/rime-prelude")
+    fetch_rime_symbols.set_defaults(func=command_fetch_rime_symbols)
+
+    fetch_mozc = subparsers.add_parser(
+        "fetch-mozc-kaomoji", help="download Mozc's kaomoji palette and license at a pinned commit"
+    )
+    fetch_mozc.add_argument("--commit", required=True, help="full Mozc commit hash")
+    fetch_mozc.add_argument("--dest", default="Vendor/mozc-kaomoji")
+    fetch_mozc.set_defaults(func=command_fetch_mozc_kaomoji)
+
+    build_palettes = subparsers.add_parser(
+        "build-symbol-palettes", help="compile the symbol and kaomoji palettes without network access"
+    )
+    build_palettes.add_argument("--symbols-dir", default="Vendor/rime-prelude")
+    build_palettes.add_argument("--symbols-manifest", default="Vendor/rime-prelude/SOURCE.json")
+    build_palettes.add_argument("--kaomoji-dir", default="Vendor/mozc-kaomoji")
+    build_palettes.add_argument("--kaomoji-manifest", default="Vendor/mozc-kaomoji/SOURCE.json")
+    build_palettes.add_argument("--output", default="Generated/flickbo.symbols")
+    build_palettes.set_defaults(func=command_build_symbol_palettes)
 
     args = parser.parse_args(argv)
     return args.func(args)

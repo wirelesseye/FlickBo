@@ -145,21 +145,25 @@ struct EmojiVersion: Comparable, Sendable {
     }
 }
 
-/// The user's recently picked emoji, newest first. Kept in the extension's
-/// own defaults so it works without Full Access.
+/// The user's recently picked palette items, newest first. Each palette keeps
+/// its own list under its own key, in the extension's own defaults so it
+/// works without Full Access.
 struct RecentEmojiStore {
-    static let key = "recentEmoji"
+    static let emojiKey = "recentEmoji"
+    static let symbolKey = "recentSymbols"
+    static let kaomojiKey = "recentKaomoji"
     static let limit = 32
 
     let defaults: UserDefaults
+    var key: String = Self.emojiKey
 
     var emoji: [String] {
-        defaults.stringArray(forKey: Self.key) ?? []
+        defaults.stringArray(forKey: key) ?? []
     }
 
     func record(_ emoji: String) {
         var list = self.emoji.filter { $0 != emoji }
         list.insert(emoji, at: 0)
-        defaults.set(Array(list.prefix(Self.limit)), forKey: Self.key)
+        defaults.set(Array(list.prefix(Self.limit)), forKey: key)
     }
 }
