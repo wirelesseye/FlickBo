@@ -250,9 +250,15 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         }
         if promoted.isEmpty {
             result.append(contentsOf: exactCharacters)
-            return withCurrentTime(
-                withNumbers(
-                    withEmoji(localized(result), tokenCount: tokens.count),
+            return withRelativeYears(
+                withRelativeDates(
+                    withCurrentTime(
+                        withNumbers(
+                            withEmoji(localized(result), tokenCount: tokens.count),
+                            tokenCount: tokens.count
+                        ),
+                        tokenCount: tokens.count
+                    ),
                     tokenCount: tokens.count
                 ),
                 tokenCount: tokens.count
@@ -264,13 +270,71 @@ final class LexiconChineseInputPipeline: ChineseInputPipeline, @unchecked Sendab
         let promotedTexts = Set(promoted.map(\.text))
         result = ranked + result.filter(\.isRawFallback)
         result.append(contentsOf: exactCharacters.filter { !promotedTexts.contains($0.text) })
-        return withCurrentTime(
-            withNumbers(
-                withEmoji(localized(result), tokenCount: tokens.count),
+        return withRelativeYears(
+            withRelativeDates(
+                withCurrentTime(
+                    withNumbers(
+                        withEmoji(localized(result), tokenCount: tokens.count),
+                        tokenCount: tokens.count
+                    ),
+                    tokenCount: tokens.count
+                ),
                 tokenCount: tokens.count
             ),
             tokenCount: tokens.count
         )
+    }
+
+    /// Inserts formatted year and sexagenary cycle right after full-coverage relative-year
+    /// trigger words (`去年`, `今年`, `明年`), similar to `withEmoji`.
+    private func withRelativeYears(_ candidates: [InputCandidate], tokenCount: Int) -> [InputCandidate] {
+        var seen = Set(candidates.map(\.text))
+        var result: [InputCandidate] = []
+        result.reserveCapacity(candidates.count)
+        var currentDate: Date?
+        for candidate in candidates {
+            result.append(candidate)
+            guard !candidate.isRawFallback,
+                  !candidate.isEmoji,
+                  candidate.id.tokenRange == 0..<tokenCount,
+                  let offset = RelativeYearCandidates.yearOffset(for: candidate.text)
+            else { continue }
+            let referenceDate = currentDate ?? now()
+            currentDate = referenceDate
+            let badge = RelativeYearCandidates.badge(for: candidate.text)
+            for formatted in RelativeYearCandidates.formattedStrings(for: referenceDate, yearOffset: offset)
+                where seen.insert(formatted).inserted
+            {
+                result.append(.year(formatted, tokenCount: tokenCount, badge: badge))
+            }
+        }
+        return result
+    }
+
+    /// Inserts formatted dates and weekday right after full-coverage relative-date
+    /// trigger words (`前天`, `昨天`, `今天`, `明天`, `後天`), similar to `withEmoji`.
+    private func withRelativeDates(_ candidates: [InputCandidate], tokenCount: Int) -> [InputCandidate] {
+        var seen = Set(candidates.map(\.text))
+        var result: [InputCandidate] = []
+        result.reserveCapacity(candidates.count)
+        var currentDate: Date?
+        for candidate in candidates {
+            result.append(candidate)
+            guard !candidate.isRawFallback,
+                  !candidate.isEmoji,
+                  candidate.id.tokenRange == 0..<tokenCount,
+                  let offset = RelativeDateCandidates.dayOffset(for: candidate.text)
+            else { continue }
+            let referenceDate = currentDate ?? now()
+            currentDate = referenceDate
+            let badge = RelativeDateCandidates.badge(for: candidate.text)
+            for formatted in RelativeDateCandidates.formattedStrings(for: referenceDate, dayOffset: offset)
+                where seen.insert(formatted).inserted
+            {
+                result.append(.date(formatted, tokenCount: tokenCount, badge: badge))
+            }
+        }
+        return result
     }
 
     /// Inserts current 24-hour and 12-hour time candidates right after full-coverage

@@ -264,4 +264,204 @@ final class ZhuyinNumberTests: ChineseInputTestCase {
             CandidateMetrics.contentInsets.right + CandidateMetrics.badgeWidth("現在的時間")
         )
     }
+
+    func testRelativeDateFormatting() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+
+        // 2026-11-22 is a Sunday
+        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 22, hour: 16, minute: 24)))
+        XCTAssertEqual(
+            RelativeDateCandidates.formattedStrings(for: today, dayOffset: 0, calendar: calendar),
+            ["2026-11-22", "2026/11/22", "2026年11月22日", "民國115年11月22日", "星期日"]
+        )
+        XCTAssertEqual(
+            RelativeDateCandidates.formattedStrings(for: today, dayOffset: -1, calendar: calendar),
+            ["2026-11-21", "2026/11/21", "2026年11月21日", "民國115年11月21日", "星期六"]
+        )
+        XCTAssertEqual(
+            RelativeDateCandidates.formattedStrings(for: today, dayOffset: -2, calendar: calendar),
+            ["2026-11-20", "2026/11/20", "2026年11月20日", "民國115年11月20日", "星期五"]
+        )
+        XCTAssertEqual(
+            RelativeDateCandidates.formattedStrings(for: today, dayOffset: 1, calendar: calendar),
+            ["2026-11-23", "2026/11/23", "2026年11月23日", "民國115年11月23日", "星期一"]
+        )
+        XCTAssertEqual(
+            RelativeDateCandidates.formattedStrings(for: today, dayOffset: 2, calendar: calendar),
+            ["2026-11-24", "2026/11/24", "2026年11月24日", "民國115年11月24日", "星期二"]
+        )
+
+        // Single-digit month/day padding check
+        let jan5 = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 1, day: 5, hour: 9, minute: 0)))
+        XCTAssertEqual(
+            RelativeDateCandidates.formattedStrings(for: jan5, dayOffset: 0, calendar: calendar),
+            ["2026-01-05", "2026/01/05", "2026年1月5日", "民國115年1月5日", "星期一"]
+        )
+    }
+
+    @MainActor
+    func testPipelineOffersRelativeDateCandidatesWithBadge() async throws {
+        let fixedDate = try XCTUnwrap(
+            Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 22, hour: 16, minute: 24))
+        )
+        let store = StubLexiconStore(entries: [
+            LexiconMatch(
+                text: "今天",
+                pronunciation: [
+                    CanonicalSyllable(base: "ㄐㄧㄣ", tone: .first),
+                    CanonicalSyllable(base: "ㄊㄧㄢ", tone: .first)
+                ],
+                sourceWeight: 0.9
+            ),
+            LexiconMatch(
+                text: "昨天",
+                pronunciation: [
+                    CanonicalSyllable(base: "ㄗㄨㄛ", tone: .second),
+                    CanonicalSyllable(base: "ㄊㄧㄢ", tone: .first)
+                ],
+                sourceWeight: 0.9
+            ),
+            LexiconMatch(
+                text: "明天",
+                pronunciation: [
+                    CanonicalSyllable(base: "ㄇㄧㄥ", tone: .second),
+                    CanonicalSyllable(base: "ㄊㄧㄢ", tone: .first)
+                ],
+                sourceWeight: 0.9
+            ),
+            LexiconMatch(
+                text: "前天",
+                pronunciation: [
+                    CanonicalSyllable(base: "ㄑㄧㄢ", tone: .second),
+                    CanonicalSyllable(base: "ㄊㄧㄢ", tone: .first)
+                ],
+                sourceWeight: 0.9
+            ),
+            LexiconMatch(
+                text: "後天",
+                pronunciation: [
+                    CanonicalSyllable(base: "ㄏㄡ", tone: .fourth),
+                    CanonicalSyllable(base: "ㄊㄧㄢ", tone: .first)
+                ],
+                sourceWeight: 0.9
+            )
+        ])
+        let pipeline = try LexiconChineseInputPipeline(store: store, now: { fixedDate })
+
+        let cases: [(reading: String, word: String, expected: [String])] = [
+            ("ㄐㄧㄣˉㄊㄧㄢˉ", "今天", ["2026-11-22", "2026/11/22", "2026年11月22日", "民國115年11月22日", "星期日"]),
+            ("ㄗㄨㄛˊㄊㄧㄢˉ", "昨天", ["2026-11-21", "2026/11/21", "2026年11月21日", "民國115年11月21日", "星期六"]),
+            ("ㄇㄧㄥˊㄊㄧㄢˉ", "明天", ["2026-11-23", "2026/11/23", "2026年11月23日", "民國115年11月23日", "星期一"]),
+            ("ㄑㄧㄢˊㄊㄧㄢˉ", "前天", ["2026-11-20", "2026/11/20", "2026年11月20日", "民國115年11月20日", "星期五"]),
+            ("ㄏㄡˋㄊㄧㄢˉ", "後天", ["2026-11-24", "2026/11/24", "2026年11月24日", "民國115年11月24日", "星期二"]),
+        ]
+
+        for testCase in cases {
+            let candidates = try await pipeline.candidates(for: zhuyinTokens(testCase.reading))
+            XCTAssertEqual(
+                candidates.prefix(6).map(\.text),
+                [testCase.word] + testCase.expected,
+                testCase.word
+            )
+            let expectedBadge = "\(testCase.word)的日期"
+            for index in 1...5 {
+                let item = CandidateItem.input(candidates[index])
+                XCTAssertEqual(item.badge, expectedBadge)
+                XCTAssertEqual(item.accessibilityLabel, "\(expectedBadge)：\(candidates[index].text)")
+            }
+        }
+
+        let todayCandidates = try await pipeline.candidates(for: zhuyinTokens("ㄐㄧㄣˉㄊㄧㄢˉ"))
+        let button = CandidateButton()
+        button.update(with: .input(todayCandidates[1]), adjustsTitleToFit: false)
+        XCTAssertEqual(button.badgeText, "今天的日期")
+        XCTAssertEqual(
+            button.titleInsets.right,
+            CandidateMetrics.contentInsets.right + CandidateMetrics.badgeWidth("今天的日期")
+        )
+    }
+
+    func testRelativeYearFormatting() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+
+        let date2026 = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 22, hour: 16, minute: 29)))
+        XCTAssertEqual(
+            RelativeYearCandidates.formattedStrings(for: date2026, yearOffset: 0, calendar: calendar),
+            ["2026", "2026年", "民國115年", "丙午"]
+        )
+        XCTAssertEqual(
+            RelativeYearCandidates.formattedStrings(for: date2026, yearOffset: -1, calendar: calendar),
+            ["2025", "2025年", "民國114年", "乙巳"]
+        )
+        XCTAssertEqual(
+            RelativeYearCandidates.formattedStrings(for: date2026, yearOffset: 1, calendar: calendar),
+            ["2027", "2027年", "民國116年", "丁未"]
+        )
+        XCTAssertEqual(RelativeYearCandidates.sexagenaryYear(for: 1984), "甲子")
+    }
+
+    @MainActor
+    func testPipelineOffersRelativeYearCandidatesWithBadge() async throws {
+        let fixedDate = try XCTUnwrap(
+            Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 22, hour: 16, minute: 29))
+        )
+        let store = StubLexiconStore(entries: [
+            LexiconMatch(
+                text: "今年",
+                pronunciation: [
+                    CanonicalSyllable(base: "ㄐㄧㄣ", tone: .first),
+                    CanonicalSyllable(base: "ㄋㄧㄢ", tone: .second)
+                ],
+                sourceWeight: 0.9
+            ),
+            LexiconMatch(
+                text: "明年",
+                pronunciation: [
+                    CanonicalSyllable(base: "ㄇㄧㄥ", tone: .second),
+                    CanonicalSyllable(base: "ㄋㄧㄢ", tone: .second)
+                ],
+                sourceWeight: 0.9
+            ),
+            LexiconMatch(
+                text: "去年",
+                pronunciation: [
+                    CanonicalSyllable(base: "ㄑㄩ", tone: .fourth),
+                    CanonicalSyllable(base: "ㄋㄧㄢ", tone: .second)
+                ],
+                sourceWeight: 0.9
+            )
+        ])
+        let pipeline = try LexiconChineseInputPipeline(store: store, now: { fixedDate })
+
+        let cases: [(reading: String, word: String, expected: [String])] = [
+            ("ㄐㄧㄣˉㄋㄧㄢˊ", "今年", ["2026", "2026年", "民國115年", "丙午"]),
+            ("ㄇㄧㄥˊㄋㄧㄢˊ", "明年", ["2027", "2027年", "民國116年", "丁未"]),
+            ("ㄑㄩˋㄋㄧㄢˊ", "去年", ["2025", "2025年", "民國114年", "乙巳"]),
+        ]
+
+        for testCase in cases {
+            let candidates = try await pipeline.candidates(for: zhuyinTokens(testCase.reading))
+            XCTAssertEqual(
+                candidates.prefix(5).map(\.text),
+                [testCase.word] + testCase.expected,
+                testCase.word
+            )
+            for index in 1...4 {
+                let item = CandidateItem.input(candidates[index])
+                XCTAssertEqual(item.badge, testCase.word)
+                XCTAssertEqual(item.accessibilityLabel, "\(testCase.word)：\(candidates[index].text)")
+            }
+        }
+
+        let thisYearCandidates = try await pipeline.candidates(for: zhuyinTokens("ㄐㄧㄣˉㄋㄧㄢˊ"))
+        let button = CandidateButton()
+        button.update(with: .input(thisYearCandidates[1]), adjustsTitleToFit: false)
+        XCTAssertEqual(button.badgeText, "今年")
+        XCTAssertEqual(
+            button.titleInsets.right,
+            CandidateMetrics.contentInsets.right + CandidateMetrics.badgeWidth("今年")
+        )
+    }
 }

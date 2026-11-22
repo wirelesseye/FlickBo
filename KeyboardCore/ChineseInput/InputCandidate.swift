@@ -94,6 +94,38 @@ struct InputCandidate: Equatable, Identifiable, Sendable {
         )
     }
 
+    /// Relative date or weekday candidate covering all `tokenCount` active tokens, not recorded by user learning.
+    static func date(
+        _ text: String,
+        tokenCount: Int,
+        badge: String
+    ) -> InputCandidate {
+        InputCandidate(
+            id: CandidateID(text: text, pronunciation: [], tokenRange: 0..<tokenCount),
+            text: text,
+            pronunciation: [],
+            score: 0,
+            isRawFallback: false,
+            badge: badge
+        )
+    }
+
+    /// Relative year or sexagenary cycle candidate covering all `tokenCount` active tokens, not recorded by user learning.
+    static func year(
+        _ text: String,
+        tokenCount: Int,
+        badge: String
+    ) -> InputCandidate {
+        InputCandidate(
+            id: CandidateID(text: text, pronunciation: [], tokenRange: 0..<tokenCount),
+            text: text,
+            pronunciation: [],
+            score: 0,
+            isRawFallback: false,
+            badge: badge
+        )
+    }
+
     init(decoded: DecodedCandidate) {
         self.init(
             id: CandidateID(
